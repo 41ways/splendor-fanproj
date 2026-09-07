@@ -33,6 +33,7 @@
   --empty:#1b1822; --zero:#4b4457;
   --veil:rgba(10,8,13,.82); --toast-bg:#2c2536; --sig:#372f44;
   --title-1:#f8e0a2; --title-2:#cf9b28;
+  --display:"Hahmlet","Nanum Myeongjo",Georgia,serif;   /* 고대비 세리프 — 보석상 간판의 금박 글씨 */
 }
 
 /* 밝은 테마 — 종이와 금박. 카드와 보석 색은 두 테마에서 그대로 둔다. */
@@ -78,8 +79,8 @@ body {
 .screen.hidden, .hidden { display: none !important; }
 .wrap { width: 100%; max-width: 420px; }
 
-h1 { font-size: 22px; letter-spacing: .22em; font-weight: 800; margin-bottom: 10px; }
-h2 { font-size: 11.5px; letter-spacing: .13em; color: var(--dim); font-weight: 700; margin-bottom: 10px; }
+h1 { font-family: var(--display); font-size: 23px; letter-spacing: .22em; font-weight: 700; margin-bottom: 10px; }
+h2 { font-family: var(--display); font-size: 12px; letter-spacing: .16em; color: var(--dim); font-weight: 700; margin-bottom: 10px; }
 h2.sub { text-align: center; }
 .tag { font-size: 12.5px; line-height: 1.85; color: var(--dim); margin-bottom: 20px; word-break: keep-all; }
 .fine { font-size: 11px; line-height: 1.7; color: var(--faint); margin-top: 8px; }
@@ -527,7 +528,8 @@ button.mini { padding: 5px 10px; font-size: 11.5px; border-radius: 7px; }
 .fan .gemicon:nth-child(5) { transform: rotate(16deg)  translateY(6px); }
 
 .hero h1 {
-  font-size: clamp(40px, 13vw, 58px); line-height: 1.05; letter-spacing: .1em;
+  font-family: var(--display);
+  font-size: clamp(40px, 13vw, 58px); line-height: 1.05; letter-spacing: .14em;
   font-weight: 800; margin: 0 0 12px; padding-left: .1em;
   background: linear-gradient(155deg, var(--title-1), var(--title-2));
   -webkit-background-clip: text; background-clip: text;

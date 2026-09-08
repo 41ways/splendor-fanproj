@@ -578,3 +578,37 @@ button.big {
 
 /* 저작권 고지 — 타이틀 아래, 자세히 봐야 보일 만큼만 */
 .legal{margin:26px auto 0;max-width:36em;font-size:10.5px;line-height:1.75;color:var(--faint);opacity:.7;text-align:center;word-break:keep-all}
+
+/* ─────────── 넓은 화면 오른쪽 열 ───────────
+   카드 줄이 길어서 오른쪽 아래가 500px 가까이 비어 보였다.
+   상대 칸과 기록을 패널로 세우고 남은 높이를 채우게 한다. */
+@media (min-width: 860px) {
+  .others {
+    align-self: stretch;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px; gap: 8px;
+  }
+  .others::before {
+    content: '상대';
+    font-size: 10px; letter-spacing: .14em; font-weight: 700;
+    color: var(--faint); padding: 0 2px 2px;
+  }
+  .log {
+    align-self: stretch;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 9px 12px 11px;
+    overflow-y: auto;
+    min-height: 96px;
+  }
+  .log::before {
+    content: '기록';
+    display: block;
+    font-size: 10px; letter-spacing: .14em; font-weight: 700;
+    color: var(--faint); margin-bottom: 5px;
+  }
+  .log:empty::before { content: '기록'; }
+}

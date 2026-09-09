@@ -629,8 +629,17 @@ button.big {
 .movebar.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 .mv-who { font-size: 13px; font-weight: 800; color: var(--accent); white-space: nowrap; }
 .mv-what { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+/* 좁은 화면에서는 상단 바(차례·도우미)를 덮지 않도록 그 아래로 내리고,
+   좁은 알약 안에서 두 줄로 삐져나오지 않게 폭을 화면에 맞춘다. */
 @media (max-width: 560px) {
-  .movebar { font-size: 12px; padding: 8px 13px; gap: 7px; }
+  .movebar {
+    left: 8px; right: 8px; max-width: none;
+    top: 54px; transform: translateY(-10px);
+    border-radius: 12px;
+    padding: 8px 13px; gap: 7px;
+    justify-content: center; flex-wrap: wrap;
+  }
+  .movebar.on { transform: translateY(0); }
   .mv-who, .mv-what { font-size: 12.5px; }
 }
 

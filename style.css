@@ -688,4 +688,7 @@ button.big {
 .chat-in { display: flex; gap: 6px; padding: 9px 10px; border-top: 1px solid var(--line); }
 .chat-in input { flex: 1; min-width: 0; font-size: 13px; padding: 8px 10px; margin: 0; }
 .chat-in button { width: auto; margin: 0; padding: 8px 12px; font-size: 13px; }
-@media (max-width: 560px) { .chat { height: min(320px, 52vh); } }
+/* 좁은 화면에서 아래에 두면 조작 판을 덮는다. 위로 올린다. */
+@media (max-width: 560px) {
+  .chat { top: 56px; bottom: auto; height: min(46vh, 330px); left: 12px; right: 12px; width: auto; }
+}

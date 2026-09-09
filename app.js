@@ -775,7 +775,12 @@
       show('lobby'); renderSeats([], false);
     };
     App.net.on.data = function (_, msg) {
-      if (msg.t === 'lobby') renderSeats(msg.seats, false);
+      if (msg.t === 'lobby') {
+        // 참가자는 자리 목록을 여기서만 받는다. 기억해 두지 않으면
+        // 판이 시작된 뒤 사람 수를 셀 수 없어 채팅이 사라져 버린다.
+        App.seats = msg.seats || [];
+        renderSeats(App.seats, false);
+      }
       else if (msg.t === 'view') {
         App.me = msg.view.me;
         if ($('game').classList.contains('hidden')) show('game');

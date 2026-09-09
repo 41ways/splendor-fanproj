@@ -11,7 +11,8 @@
     mode: 'solo', me: 'me', net: null, seats: [], state: null, view: null,
     started: false, skill: 1, botTimer: null, sig: '',
     selCard: null, selDeck: null, gems: [], drop: [],
-    coach: true, tip: null, tourStep: 0
+    coach: true, tip: null, tourStep: 0,
+    moveKey: '', moveTimer: null, holdUntil: 0
   };
 
   function show(which) {
@@ -74,6 +75,35 @@
       (p ? p.cards.length + ':' + R.tokenCount(p) + ':' + p.reserved.length : '');
   }
 
+  /* ── 방금 무슨 일이 있었는가 ──
+     봇이 700ms 마다 조용히 움직이면 처음 하는 사람은 판이 왜 바뀌었는지 따라갈 수 없다.
+     남이 둔 수를 한 줄로 띄우고, 그 줄을 읽을 만큼 다음 수를 미룬다.
+     한글 짧은 문구는 눈에 들어오는 데 0.8초 + 글자당 0.07초쯤 걸린다. */
+  function readMs(text, floor) {
+    var n = String(text || '').replace(/\s/g, '').length;
+    return Math.max(floor, 800 + n * 70);
+  }
+
+  function showMove(v) {
+    var last = v.log && v.log.length ? v.log[v.log.length - 1] : null;
+    if (!last) return;
+    var key = v.round + '|' + v.turn + '|' + last.name + '|' + last.text;
+    if (key === App.moveKey) return;
+    App.moveKey = key;
+
+    var box = $('move');
+    // 내가 둔 수는 내가 방금 눌렀으니 굳이 붙잡아 두지 않는다
+    var mine = last.pid === v.me;
+    box.querySelector('.mv-who').textContent = last.name || '';
+    box.querySelector('.mv-what').textContent = last.text || '';
+    box.classList.add('on');
+
+    var hold = mine ? 600 : readMs((last.name || '') + (last.text || ''), 1400);
+    App.holdUntil = Date.now() + hold;
+    clearTimeout(App.moveTimer);
+    App.moveTimer = setTimeout(function () { box.classList.remove('on'); }, hold);
+  }
+
   function applyView(v) {
     var prev = App.view;
     var sig = sigOf(v);
@@ -81,6 +111,7 @@
     App.view = v;
     App.tip = tipFor(v);
     render();
+    showMove(v);
 
     // 버리기 단계에서는 눌러야 할 내 칩이 아래 조작 판에 가린다. 판 위로 끌어올린다.
     if (v.phase === 'discard' && isMyTurn(v) && (!prev || prev.phase !== 'discard')) showMine();
@@ -110,7 +141,9 @@
     var p = R.current(s);
     if (!p.bot) return;
     clearTimeout(App.botTimer);
-    App.botTimer = setTimeout(botStep, s.phase === 'play' ? 700 : 420);
+    // 방금 둔 수를 읽을 시간을 먼저 준다. 그래야 판이 왜 바뀌었는지 따라갈 수 있다.
+    var hold = Math.max(0, (App.holdUntil || 0) - Date.now());
+    App.botTimer = setTimeout(botStep, hold + (s.phase === 'play' ? 550 : 380));
   }
 
   function botStep() {

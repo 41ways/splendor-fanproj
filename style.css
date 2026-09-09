@@ -612,3 +612,24 @@ button.big {
   }
   .log:empty::before { content: '기록'; }
 }
+
+/* ─────────── 방금 둔 수 ───────────
+   봇이 조용히 움직이면 판이 왜 바뀌었는지 알 수 없다. 화면 위에 한 줄로 띄운다.
+   판을 밀지 않도록 떠 있는 자리에 두고, 다 읽을 만큼만 머문다. */
+.movebar {
+  position: fixed; left: 50%; top: 10px; transform: translateX(-50%) translateY(-14px);
+  z-index: 40; pointer-events: none;
+  display: flex; align-items: baseline; gap: 10px;
+  max-width: min(94vw, 620px);
+  padding: 9px 18px; border-radius: 999px;
+  background: var(--panel2); border: 1px solid var(--line-2);
+  box-shadow: 0 14px 34px -14px rgba(0,0,0,.55);
+  opacity: 0; transition: opacity .16s ease, transform .16s ease;
+}
+.movebar.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.mv-who { font-size: 13px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.mv-what { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+@media (max-width: 560px) {
+  .movebar { font-size: 12px; padding: 8px 13px; gap: 7px; }
+  .mv-who, .mv-what { font-size: 12.5px; }
+}

@@ -425,7 +425,13 @@
       var usable = isMyTurn(v) && v.phase === 'play' && c !== GOLD && v.bank[c] > 0;
       if (!v.bank[c]) pile.classList.add('dead');          // 바닥난 것만 흐리게
       if (usable) pile.classList.add('live');
-      pile.onclick = function () { if (usable) toggleGem(c, v); };
+      // 눌렀는데 아무 일도 안 일어나면 고장으로 보인다. 왜 안 되는지 말해 준다.
+      pile.onclick = function () {
+        if (usable) { toggleGem(c, v); return; }
+        if (!isMyTurn(v) || v.phase !== 'play') return;
+        if (c === GOLD) toast('황금은 직접 가져올 수 없습니다 — 카드를 킵하면 1개 따라옵니다.');
+        else if (!v.bank[c]) toast('그 보석은 다 떨어졌습니다.');
+      };
       box.appendChild(pile);
     });
   }
@@ -439,7 +445,11 @@
     if (same) sel = (sel[0] === c) ? [] : [c];
     else if (have) {
       if (sel.length === 1 && v.bank[c] >= 4) sel = [c, c];       // 한 색만 골라둔 상태에서 다시 누르면 2개
-      else sel = sel.filter(function (x) { return x !== c; });
+      else {
+        // 두 개를 노리고 다시 누른 것인데 조건이 안 되는 경우 — 말없이 풀리면 고장으로 보인다
+        if (sel.length === 1) toast('같은 색 2개는 그 보석이 4개 이상 남아 있을 때만 됩니다 (지금 ' + v.bank[c] + '개).');
+        sel = sel.filter(function (x) { return x !== c; });
+      }
     } else if (sel.length < 3) sel.push(c);
     else toast('한 번에 3개까지입니다.');
 
@@ -610,7 +620,10 @@
       var same = App.gems.length === 2 && App.gems[0] === App.gems[1];
       var avail = COLORS.filter(function (c) { return v.bank[c] > 0; }).length;
       var okTake = same || App.gems.length === 3 || App.gems.length >= avail;
-      msg(same ? '같은 색 2개' : '서로 다른 ' + App.gems.length + '가지');
+      // 버튼만 꺼 두면 왜 안 눌리는지 알 수 없다. 무엇이 모자란지 함께 말해 준다.
+      msg(same ? '같은 색 2개'
+               : '서로 다른 ' + App.gems.length + '가지' +
+                 (okTake ? '' : ' — <b>3가지</b>를 채우거나, 한 색을 두 번 눌러 <b>같은 색 2개</b>로 가져오세요'));
       btn('가져오기', function () { act('takeGems', [App.gems.slice()]); }, true, !okTake);
       btn('취소', function () { App.gems = []; render(); });
       return;

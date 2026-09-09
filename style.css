@@ -633,3 +633,8 @@ button.big {
   .movebar { font-size: 12px; padding: 8px 13px; gap: 7px; }
   .mv-who, .mv-what { font-size: 12.5px; }
 }
+
+/* ─────────── 타이틀 아래 빈 공간 ───────────
+   본문이 가운데에 서고 고지가 바닥에 붙게 한다. 둘 사이가 아니라 위아래로 나뉜다. */
+#home .hero { padding-bottom: 0; }
+#home .legal { margin-top: auto; padding-top: 26px; padding-bottom: 14px; }

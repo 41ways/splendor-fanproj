@@ -903,7 +903,7 @@
      같은 방 사람끼리만 오간다. 판정과는 무관하고 어디에도 저장되지 않는다.
      방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
 
-  var chatUnread = 0, chatLast = 0;
+  var chatUnread = 0, chatLast = {};      // 도배 방지는 사람마다 따로 센다
   function chatEsc(t) {
     return String(t).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -917,8 +917,10 @@
     text = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!text) return;
     var now = Date.now();
-    if (now - chatLast < 350) return;                 // 도배 막기
-    chatLast = now;
+    // 한 사람이 몰아치는 것만 막는다. 전체를 하나로 세면
+    // 두 사람이 동시에 말할 때 한쪽 말이 소리 없이 사라진다.
+    if (now - (chatLast[pid] || 0) < 350) return;
+    chatLast[pid] = now;
     var out = { t: 'chat', from: pid, name: chatSeatName(pid), text: text };
     App.net.broadcast(function () { return out; });
     addChat(out.name, text, pid === App.me);

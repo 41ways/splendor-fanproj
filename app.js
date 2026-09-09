@@ -703,6 +703,7 @@
 
   /* ---------------- 대기실 ---------------- */
   function renderSeats(list, hostView) {
+    syncChatVisible(list);          // 대기실에서도 채팅이 되어야 한다
     var box = $('seats'); box.innerHTML = '';
     list.forEach(function (s, i) {
       var row = el('div', 'seat');
@@ -758,6 +759,7 @@
     };
     App.net.on.data = function (pid, msg) {
       if (msg.t === 'act' && App.started) doAction(pid, msg.action, msg.args || []);
+      else if (msg.t === 'chat') relayChat(pid, msg.text);
     };
     App.net.host();
   }
@@ -778,7 +780,8 @@
         App.me = msg.view.me;
         if ($('game').classList.contains('hidden')) show('game');
         applyView(msg.view);
-      } else if (msg.t === 'err') toast(msg.msg);
+      } else if (msg.t === 'chat') addChat(msg.name, msg.text, msg.from === App.me);
+      else if (msg.t === 'err') toast(msg.msg);
     };
     App.net.join(code, myName());
   }
@@ -895,6 +898,75 @@
   })();
   $('name').value = localStorage.getItem('splendor.name') || '';
   $('name').addEventListener('change', function () { localStorage.setItem('splendor.name', myName()); });
+
+  /* ---------------- 채팅 ----------------
+     같은 방 사람끼리만 오간다. 판정과는 무관하고 어디에도 저장되지 않는다.
+     방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
+
+  var chatUnread = 0, chatLast = 0;
+  function chatEsc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function chatSeatName(pid) {
+    for (var i = 0; i < App.seats.length; i++) if (App.seats[i].id === pid) return App.seats[i].name;
+    return '?';
+  }
+  function relayChat(pid, text) {
+    text = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!text) return;
+    var now = Date.now();
+    if (now - chatLast < 350) return;                 // 도배 막기
+    chatLast = now;
+    var out = { t: 'chat', from: pid, name: chatSeatName(pid), text: text };
+    App.net.broadcast(function () { return out; });
+    addChat(out.name, text, pid === App.me);
+  }
+  function chatSend(text) {
+    if (App.mode === 'client') App.net.toHost({ t: 'chat', text: text });
+    else relayChat(App.me, text);
+  }
+  function chatOpen(on) {
+    $('chat').hidden = !on;
+    if (!on) return;
+    chatUnread = 0; $('chatN').hidden = true;
+    $('chatText').focus();
+    var log = $('chatLog'); log.scrollTop = log.scrollHeight;
+  }
+  function addChat(name, text, mine) {
+    var log = $('chatLog');
+    var d = el('p', 'chat-msg' + (mine ? ' mine' : ''));
+    d.innerHTML = '<b>' + chatEsc(name) + '</b> ' + chatEsc(text);
+    log.appendChild(d);
+    while (log.children.length > 60) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+    if ($('chat').hidden && !mine) {
+      chatUnread++;
+      var n = $('chatN');
+      n.textContent = chatUnread > 9 ? '9+' : String(chatUnread);
+      n.hidden = false;
+    }
+  }
+  /** 사람이 나 말고 또 있을 때만 채팅을 내놓는다 */
+  function syncChatVisible(list) {
+    var seats = list || App.seats || [];
+    var humans = 0;
+    seats.forEach(function (st) { if (!st.bot) humans++; });
+    var on = App.mode !== 'solo' && humans > 1;
+    $('chatBtn').hidden = !on;
+    if (!on) $('chat').hidden = true;
+    else $('chatWho').textContent = humans + '명';
+  }
+  $('chatBtn').onclick = function () { chatOpen($('chat').hidden); };
+  $('chatX').onclick = function () { chatOpen(false); };
+  $('chatForm').onsubmit = function (e) {
+    e.preventDefault();
+    var box = $('chatText'), text = box.value.trim();
+    box.value = '';
+    if (text) chatSend(text);
+  };
+  $('chatText').onkeydown = function (e) { if (e.key === 'Escape') chatOpen(false); };
 
   App.act = act; App.doAction = doAction; App.pushViews = pushViews; App.render = render;
   window.__sp = App;

@@ -396,7 +396,13 @@
       if (tipActive() && App.tip.deck === t) deck.classList.add('tip');
       if (App.selDeck === t) deck.classList.add('sel');
       deck.onclick = function () {
-        if (!canDeck) return;
+        if (!canDeck) {
+          // 눌렀는데 아무 일도 안 일어나면 고장으로 보인다
+          if (!isMyTurn(v) || v.phase !== 'play') return;
+          if (!v.deckCount[t]) toast(t + '단계 더미가 비었습니다.');
+          else if (p.reserved.length >= R.MAX_RESERVED) toast('킵은 3장까지입니다 — 먼저 킵한 카드를 사야 자리가 납니다.');
+          return;
+        }
         App.selDeck = (App.selDeck === t) ? null : t;
         App.selCard = null; App.gems = [];
         render();
@@ -646,7 +652,10 @@
                                         : ' · 보석 ' + Math.max(0, missTotal - p.gems[GOLD]) + '개 모자람'));
         btn('사기', function () { act('buy', [f.card.id]); }, true, !bill);
         if (f.where === 'board') {
-          btn('킵하기', function () { act('reserve', [f.card.id]); }, false, p.reserved.length >= R.MAX_RESERVED);
+          var full = p.reserved.length >= R.MAX_RESERVED;
+          // 버튼만 꺼 두면 왜 안 눌리는지 알 수 없다
+          if (full) msg('킵은 <b>3장까지</b>입니다 — 먼저 킵한 카드를 사야 자리가 납니다.');
+          btn('킵하기', function () { act('reserve', [f.card.id]); }, false, full);
         }
         btn('닫기', function () { App.selCard = null; render(); });
         return;

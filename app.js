@@ -40,6 +40,13 @@
     svg.appendChild(use);
     return svg;
   }
+  /* 남이 정한 값(이름 등)을 innerHTML 에 넣을 때는 반드시 이걸 거친다 */
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -570,7 +577,7 @@
 
     if (!isMyTurn(v)) {
       var cur = v.players[v.turn];
-      msg('<b>' + cur.name + '</b>의 차례입니다.');
+      msg('<b>' + esc(cur.name) + '</b>의 차례입니다.');
       return;
     }
 
@@ -909,11 +916,6 @@
      방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
 
   var chatUnread = 0, chatLast = {};      // 도배 방지는 사람마다 따로 센다
-  function chatEsc(t) {
-    return String(t).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
   function chatSeatName(pid) {
     for (var i = 0; i < App.seats.length; i++) if (App.seats[i].id === pid) return App.seats[i].name;
     return '?';
@@ -944,7 +946,7 @@
   function addChat(name, text, mine) {
     var log = $('chatLog');
     var d = el('p', 'chat-msg' + (mine ? ' mine' : ''));
-    d.innerHTML = '<b>' + chatEsc(name) + '</b> ' + chatEsc(text);
+    d.innerHTML = '<b>' + esc(name) + '</b> ' + esc(text);
     log.appendChild(d);
     while (log.children.length > 60) log.removeChild(log.firstChild);
     log.scrollTop = log.scrollHeight;

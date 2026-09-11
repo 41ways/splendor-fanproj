@@ -664,6 +664,9 @@ button.big {
   font-size: 11px; font-weight: 800; line-height: 18px;
   background: var(--bad); color: #fff;
 }
+/* hidden 속성은 브라우저 기본 display:none 이라, 아래처럼 display 를 선언한 요소에서는
+   밀려서 무시된다. 그래서 채팅창이 첫 화면부터 떠 있고 ✕로도 닫히지 않았다. */
+.chat[hidden] { display: none; }
 .chat {
   position: fixed; right: 16px; bottom: 16px; z-index: 46;
   width: min(320px, calc(100vw - 32px)); height: min(380px, 60vh);

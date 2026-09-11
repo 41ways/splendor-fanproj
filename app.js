@@ -799,6 +799,9 @@
     App.net.on.status = toast;
     App.net.on.error = function (m) { toast(m); show('home'); App.net.close(); };
     App.net.on.open = function (c) {
+      // 방장은 나를 내 연결 id 로 부른다. 판이 시작되기 전에도 알고 있어야
+      // 대기실에서 내가 친 채팅을 내 것으로 알아본다(안 그러면 남의 말처럼 보이고 알림까지 센다).
+      if (App.net.peer && App.net.peer.id) App.me = App.net.peer.id;
       $('roomCode').textContent = c;
       $('lobbyHint').textContent = '방장이 시작하기를 기다리는 중…';
       show('lobby'); renderSeats([], false);

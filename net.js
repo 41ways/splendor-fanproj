@@ -33,9 +33,14 @@
     this.isHost = false;
     this.code = null;
     this.on = {};           // open, join, leave, data, error, status
+    this.closed = false;
+    this.joinTimer = null;
   }
 
+  // 닫은 뒤에 늦게 도착한 일(타이머·연결 이벤트)은 흘려보낸다. 안 그러면 버린 연결의 오류가
+  // 지금 쓰는 연결을 닫아 버린다 (틀린 코드 → 12초 안에 다른 방 참가 → 12초째에 메뉴로 튕김).
   Net.prototype.emit = function (ev, a, b) {
+    if (this.closed) return;
     if (this.on[ev]) this.on[ev](a, b);
   };
 
@@ -144,12 +149,12 @@
       self.hostConn = conn;
 
       var settled = false;
-      var timer = setTimeout(function () {
+      self.joinTimer = setTimeout(function () {
         if (!settled) self.emit('error', '방을 찾지 못했습니다. 코드를 확인해 주세요.');
       }, 12000);
 
       conn.on('open', function () {
-        settled = true; clearTimeout(timer);
+        settled = true; clearTimeout(self.joinTimer);
         conn.send({ t: 'hello', name: name });
         self.startClientWatch();
         self.emit('open', code);
@@ -164,6 +169,7 @@
     });
 
     peer.on('error', function (err) {
+      clearTimeout(self.joinTimer);
       if (err && err.type === 'peer-unavailable') {
         self.emit('error', '그런 방이 없습니다. 코드를 확인해 주세요.');
         return;
@@ -197,7 +203,16 @@
     }
   };
 
+  /** 방장이 받지 않기로 한 참가자를 끊는다 — 붙어 있으면 대기실 목록과 판 화면을 계속 받는다 */
+  Net.prototype.kick = function (pid) {
+    var c = this.conns[pid];
+    delete this.conns[pid];
+    if (c) setTimeout(function () { try { c.close(); } catch (e) {} }, 400);   // 거절 사유가 먼저 닿게
+  };
+
   Net.prototype.close = function () {
+    this.closed = true;
+    clearTimeout(this.joinTimer);
     if (this.watch) { clearInterval(this.watch); this.watch = null; }
     try { if (this.peer) this.peer.destroy(); } catch (e) {}
     this.peer = null; this.conns = {}; this.hostConn = null;

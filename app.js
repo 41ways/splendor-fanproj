@@ -187,6 +187,12 @@
         if (card && R.payFor(p, card)) { r = R.buy(s, p.id, card.id); if (r.ok) return r; }
       }
     }
+    // 킵해 둔 카드도 살 수 있다. 여길 빼먹으면 은행이 비고 킵이 3장 찼을 때 할 수 있는 게
+    // 킵한 카드 사기뿐인데, 넘기기는 "아직 할 수 있는 행동이 있다" 로 거절되어 판이 멈췄다.
+    for (var k = 0; k < p.reserved.length; k++) {
+      var rc = p.reserved[k].card;
+      if (R.payFor(p, rc)) { r = R.buy(s, p.id, rc.id); if (r.ok) return r; }
+    }
     var avail = COLORS.filter(function (c) { return s.bank[c] > 0; });
     if (avail.length) { r = R.takeGems(s, p.id, avail.slice(0, 3)); if (r.ok) return r; }
     for (var t2 = 1; t2 <= 3; t2++) {
@@ -197,7 +203,12 @@
     return R.pass(s, p.id);
   }
 
+  // 같은 행동을 연달아 두 번 누르면 두 번째는 차례가 넘어간 뒤에 도착해 "당신 차례가 아닙니다"가 뜬다.
+  var ACT_LOCK_MS = 350, lastAct = { k: '', at: 0 };
   function act(action, args) {
+    var k = action + ':' + JSON.stringify(args || []), now = Date.now();
+    if (k === lastAct.k && now - lastAct.at < ACT_LOCK_MS) return;
+    lastAct = { k: k, at: now };
     if (App.mode === 'client') { App.net.toHost({ t: 'act', action: action, args: args }); return; }
     doAction(App.me, action, args);
   }
@@ -759,6 +770,8 @@
 
   /* ---------------- 방장 / 참가자 ---------------- */
   function beHost() {
+    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
+    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
     App.mode = 'host'; App.me = 'host';
     App.seats = [{ id: 'host', name: myName(), bot: false }];
     App.net = new Net();
@@ -771,7 +784,8 @@
     };
     App.net.on.join = function (pid, name) {
       if (App.started || App.seats.length >= 4) {
-        App.net.toPlayer(pid, { t: 'err', msg: App.started ? '이미 시작된 방입니다.' : '자리가 찼습니다.' });
+        App.net.toPlayer(pid, { t: 'err', msg: App.started ? '이미 시작된 방입니다.' : '자리가 찼습니다.', fatal: true });
+        App.net.kick(pid);                         // 붙여 두면 관전자처럼 판 화면을 계속 받는다
         return;
       }
       var base = name, n = 2;
@@ -794,6 +808,8 @@
   }
 
   function beClient(code) {
+    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
+    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
     App.mode = 'client';
     App.net = new Net();
     App.net.on.status = toast;
@@ -818,7 +834,10 @@
         if ($('game').classList.contains('hidden')) show('game');
         applyView(msg.view);
       } else if (msg.t === 'chat') addChat(msg.name, msg.text, msg.from === App.me);
-      else if (msg.t === 'err') toast(msg.msg);
+      else if (msg.t === 'err') {
+        toast(msg.msg);
+        if (msg.fatal) { App.net.close(); show('menu'); }   // 방장이 받지 않았다 — 대기실에 남겨 두지 않는다
+      }
     };
     App.net.join(code, myName());
   }
@@ -941,6 +960,13 @@
      방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
 
   var chatUnread = 0, chatLast = {};      // 도배 방지는 사람마다 따로 센다
+  /** 새 방에 들어오면 채팅을 비운다. 안 그러면 전 방에서 오간 말이 새 방 채팅창에 그대로 남는다. */
+  function chatReset() {
+    $('chatLog').textContent = '';
+    $('chat').hidden = true;
+    chatUnread = 0; chatLast = {}; chatBadge(); chatPeekOff();
+    chatAway = 0; chatTitle();
+  }
   function chatSeatName(pid) {
     for (var i = 0; i < App.seats.length; i++) if (App.seats[i].id === pid) return App.seats[i].name;
     return '?';

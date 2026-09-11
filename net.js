@@ -47,6 +47,7 @@
   Net.prototype.host = function (attempt) {
     var self = this;
     attempt = attempt || 0;
+    if (self.closed) return;                     // 닫은 뒤에 코드 충돌 재시도가 돌면 아무도 모르는 방이 열린다
     if (attempt > 6) { self.emit('error', '방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
 
     var code = makeCode();

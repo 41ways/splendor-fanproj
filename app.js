@@ -19,6 +19,9 @@
     ['home', 'setup', 'lobby', 'game'].forEach(function (id) {
       $(id).classList.toggle('hidden', id !== which);
     });
+    // 결과판은 화면 밖에 떠 있어서, 판이 끝난 뒤 방장이 나가 튕기면 첫 화면 위에 그대로 덮여 있었다
+    if (which !== 'game') $('over').classList.add('hidden');
+    if (which === 'home' || which === 'setup') { $('chatBtn').hidden = true; $('chat').hidden = true; }   // 방 밖에서는 채팅이 갈 곳이 없다
   }
   var toastTimer = null;
   function toast(msg) {
@@ -836,7 +839,9 @@
       } else if (msg.t === 'chat') addChat(msg.name, msg.text, msg.from === App.me);
       else if (msg.t === 'err') {
         toast(msg.msg);
-        if (msg.fatal) { App.net.close(); show('menu'); }   // 방장이 받지 않았다 — 대기실에 남겨 두지 않는다
+        // 방장이 받지 않았다 — 대기실에 남겨 두지 않는다. 스플렌더의 방 고르기 화면은 'setup' 이다
+        // (다빈치코드의 'menu' 를 그대로 옮겨 적어 모든 화면이 가려진 빈 페이지가 됐었다)
+        if (msg.fatal) { App.net.close(); show('setup'); }
       }
     };
     App.net.join(code, myName());

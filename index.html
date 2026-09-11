@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=ab2f786b">
+<link rel="stylesheet" href="style.css?v=fe4d8581">
 </head>
 <body>
 
@@ -357,6 +357,7 @@
 
 <!-- 같은 방 사람끼리 하는 채팅 — 봇만 있는 방에서는 뜨지 않는다 -->
 <button id="chatBtn" class="chat-btn" hidden aria-label="채팅 열기">💬<span class="chat-n" id="chatN" hidden></span></button>
+<div id="chatPeek" class="chat-peek" hidden role="status" aria-live="polite"></div>
 <section id="chat" class="chat" hidden aria-label="채팅">
   <header class="chat-head"><b>채팅</b><span class="chat-sub" id="chatWho"></span><button class="chat-x" id="chatX" aria-label="닫기">✕</button></header>
   <div class="chat-log" id="chatLog"></div>
@@ -370,7 +371,7 @@
 <script src="rules.js?v=b48908f9"></script>
 <script src="ai.js?v=40eadb31"></script>
 <script src="net.js?v=face632c"></script>
-<script src="app.js?v=cbf2577c"></script>
+<script src="app.js?v=be9820ff"></script>
 <!-- 연출 속도 재기 — ?qa=pace 로 들어올 때만 불러온다 -->
 <script>if(new URLSearchParams(location.search).get('qa')==='pace'){var s=document.createElement('script');s.src='qa/scene.js';document.body.appendChild(s);}</script>
 </body>

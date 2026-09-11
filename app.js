@@ -964,7 +964,7 @@
   function chatOpen(on) {
     $('chat').hidden = !on;
     if (!on) return;
-    chatUnread = 0; $('chatN').hidden = true;
+    chatUnread = 0; chatBadge(); chatPeekOff();
     $('chatText').focus();
     var log = $('chatLog'); log.scrollTop = log.scrollHeight;
   }
@@ -975,13 +975,45 @@
     log.appendChild(d);
     while (log.children.length > 60) log.removeChild(log.firstChild);
     log.scrollTop = log.scrollHeight;
-    if ($('chat').hidden && !mine) {
-      chatUnread++;
-      var n = $('chatN');
-      n.textContent = chatUnread > 9 ? '9+' : String(chatUnread);
-      n.hidden = false;
-    }
+    if (mine) return;
+    if ($('chat').hidden) { chatUnread++; chatBadge(); chatPeek(name, text); }
+    if (document.hidden || !document.hasFocus()) { chatAway++; chatTitle(); }
   }
+
+  /* 접어 둔 동안 온 말은 세 군데로 알린다 — 버튼의 빨간 숫자(늘 때마다 통 튄다),
+     버튼 옆 말풍선(읽을 만큼 떠 있다 사라진다), 다른 탭·창에 가 있으면 탭 제목 앞의 (n). */
+  var chatAway = 0, chatPeekT = 0, chatTitle0 = document.title;
+  function chatBadge() {
+    var n = $('chatN');
+    n.textContent = chatUnread > 99 ? '99+' : String(chatUnread);
+    n.hidden = !chatUnread;
+    $('chatBtn').setAttribute('aria-label', chatUnread ? '채팅 열기 — 안 읽은 말 ' + chatUnread + '개' : '채팅 열기');
+    if (!chatUnread) return;
+    n.classList.remove('pop'); void n.offsetWidth; n.classList.add('pop');
+  }
+  function chatPeek(name, text) {
+    var p = $('chatPeek');
+    p.innerHTML = '<b>' + esc(name) + '</b>' + esc(text);
+    p.classList.remove('bye'); p.hidden = false;
+    p.style.animation = 'none'; void p.offsetWidth; p.style.animation = '';
+    clearTimeout(chatPeekT);
+    chatPeekT = setTimeout(function () {
+      p.classList.add('bye');
+      chatPeekT = setTimeout(chatPeekOff, 260);
+    }, Math.min(6000, Math.max(3000, 1200 + 70 * text.length)));
+  }
+  function chatPeekOff() {
+    clearTimeout(chatPeekT);
+    var p = $('chatPeek'); p.hidden = true; p.classList.remove('bye');
+  }
+  function chatTitle() {
+    document.title = (chatAway ? '(' + (chatAway > 99 ? '99+' : chatAway) + ') ' : '') + chatTitle0;
+  }
+  function chatBack() {
+    if (chatAway && !document.hidden && document.hasFocus()) { chatAway = 0; chatTitle(); }
+  }
+  document.addEventListener('visibilitychange', chatBack);
+  window.addEventListener('focus', chatBack);
   /** 사람이 나 말고 또 있을 때만 채팅을 내놓는다 */
   function syncChatVisible(list) {
     var seats = list || App.seats || [];
@@ -989,10 +1021,11 @@
     seats.forEach(function (st) { if (!st.bot) humans++; });
     var on = App.mode !== 'solo' && humans > 1;
     $('chatBtn').hidden = !on;
-    if (!on) $('chat').hidden = true;
+    if (!on) { $('chat').hidden = true; chatPeekOff(); }
     else $('chatWho').textContent = humans + '명';
   }
   $('chatBtn').onclick = function () { chatOpen($('chat').hidden); };
+  $('chatPeek').onclick = function () { chatOpen(true); };
   $('chatX').onclick = function () { chatOpen(false); };
   $('chatForm').onsubmit = function (e) {
     e.preventDefault();

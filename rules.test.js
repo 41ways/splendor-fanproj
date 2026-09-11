@@ -331,5 +331,15 @@ section('봇으로 500판');
               ' / 최대 ' + rounds[rounds.length - 1] + '   판당 귀족 ' + (nobles / games).toFixed(2) + '명');
 })();
 
+/* ---------------- 나간 사람의 보석 ---------------- */
+(function () {
+  var s = R.newGame([{ id: 'p0', name: '가' }, { id: 'p1', name: '나' }, { id: 'p2', name: '다' }], 7);
+  var cur = R.current(s).id;
+  var before = JSON.stringify(s.bank);
+  R.takeGems(s, cur, ['w', 'u', 'g']);
+  R.dropPlayer(s, cur);
+  ok('나간 사람이 쥐던 보석은 은행으로 돌아온다', JSON.stringify(s.bank) === before);
+})();
+
 console.log('\n' + (fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass);
 process.exit(fail ? 1 : 0);

@@ -233,6 +233,8 @@
     var p = player(s, pid);
     if (!p || p.out || s.phase === 'over') return { ok: false, error: '이미 빠진 자리입니다.' };
     p.out = true;
+    // 쥐고 있던 보석은 은행으로 돌려놓는다. 안 그러면 남은 사람들이 쓸 보석이 그만큼 영영 모자란다.
+    ALL.forEach(function (c) { s.bank[c] += p.gems[c] || 0; p.gems[c] = 0; });
     note(s, p, '연결이 끊겨 빠짐', { type: 'drop', pid: pid });
     if (alive(s).length <= 1) { finish(s); return { ok: true }; }
     if (current(s).id === pid) { s.phase = 'play'; advance(s); }

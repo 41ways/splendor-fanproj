@@ -959,7 +959,7 @@
     if (App.view) { App.tip = tipFor(App.view); render(); }
   };
 
-  // 가이드는 처음에 저절로 띄우지 않는다 — 타이틀의 '어떻게 하는 게임인지 보기'로만 연다
+  // 가이드는 처음에 저절로 띄우지 않는다 — 타이틀의 '가이드' 버튼으로만 연다
   $('name').value = localStorage.getItem('splendor.name') || '';
   $('name').addEventListener('change', function () { localStorage.setItem('splendor.name', myName()); });
 

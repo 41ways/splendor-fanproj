@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=fe4d8581">
+<link rel="stylesheet" href="style.css?v=4436ed59">
 </head>
 <body>
 
@@ -207,6 +207,23 @@
 </div>
 
 <!-- 처음 오는 사람에게 보여주는 안내 -->
+<!-- 들어오자마자 뜨는 안내 — 아직 미완성이라 피드백을 부탁한다 -->
+<div id="notice" class="overlay notice" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+  <div class="sheet tall">
+    <div class="big" id="noticeTitle">피드백을 부탁드립니다</div>
+    <div class="doc">
+      <p>이 스플렌더는 제가 보드게임을 직접 해 보지 않은 채 규칙만 보고 만든 것이라, 아직 미완성이고 부족한 점이 많습니다.
+      스플렌더를 잘 알지 못해 혼자서는 완성하기가 어렵습니다.</p>
+      <p><b>보드게임 스플렌더를 해 보셨거나 이 온라인 스플렌더를 플레이해 보신 분</b>이라면,
+      규칙이 다르거나 어색한 점을 알려 주시면 큰 도움이 됩니다.</p>
+      <p>해 보지도 않고 만들기부터 해서 죄송합니다.</p>
+      <p>의견 보내실 곳 — <a href="mailto:gyolno2@naver.com">gyolno2@naver.com</a> ·
+      <a href="https://github.com/41ways/splendor-fanproj/issues" target="_blank" rel="noopener noreferrer">GitHub 이슈</a></p>
+    </div>
+    <button id="btnNotice" class="primary">확인</button>
+  </div>
+</div>
+
 <div id="tour" class="overlay hidden">
   <div class="sheet tour">
     <div class="tstep" data-step="0">
@@ -371,7 +388,7 @@
 <script src="rules.js?v=2d8dc1de"></script>
 <script src="ai.js?v=40eadb31"></script>
 <script src="net.js?v=b95b6123"></script>
-<script src="app.js?v=ca2f7988"></script>
+<script src="app.js?v=6ebe39db"></script>
 <!-- 연출 속도 재기 — ?qa=pace 로 들어올 때만 불러온다 -->
 <script>if(new URLSearchParams(location.search).get('qa')==='pace'){var s=document.createElement('script');s.src='qa/scene.js';document.body.appendChild(s);}</script>
 </body>

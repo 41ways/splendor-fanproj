@@ -718,3 +718,8 @@ button.big {
 @media (max-width: 560px) {
   .chat { top: 56px; bottom: auto; height: min(46vh, 330px); left: 12px; right: 12px; width: auto; }
 }
+
+/* 들어오자마자 뜨는 피드백 부탁 — 첫 방문 안내(tour)보다 위에 */
+.overlay.notice { z-index: 40; }
+.notice .doc a { color: var(--accent); }
+.notice .primary { margin-top: 6px; }

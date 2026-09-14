@@ -872,6 +872,14 @@
     if (onTitle && App.tourStep === TOUR_LAST) show('setup');
   }
 
+  // 들어올 때마다 뜨는 피드백 부탁. 확인이나 Esc·바깥 누르기로 닫는다.
+  function noticeClose() { $('notice').classList.add('hidden'); }
+  $('btnNotice').onclick = noticeClose;
+  $('notice').addEventListener('click', function (e) { if (e.target === $('notice')) noticeClose(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('notice').classList.contains('hidden')) noticeClose();
+  });
+
   /* ---------------- 테마 ---------------- */
   function setTheme(t, remember) {
     document.documentElement.setAttribute('data-theme', t);

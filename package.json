@@ -1,0 +1,19 @@
+{
+  "name": "splendor",
+  "version": "2.0.0",
+  "private": true,
+  "description": "스플렌더 — 보석을 모아 개발 카드를 사는 온라인 보드게임",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node rules.test.js && node ai.test.js && node test/flow.js",
+    "smoke": "node test/smoke.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

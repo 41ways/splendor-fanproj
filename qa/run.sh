@@ -1,7 +1,7 @@
 #!/bin/sh
 # 화면을 실제로 돌려서 연출 속도를 잰다.
 #   sh qa/run.sh [인원]
-# 미리 이 폴더를 http 로 띄워 두어야 한다:  python3 -m http.server 8799
+# 미리 서버를 띄워 두어야 한다:  PORT=8799 node server.js   (혼자 하기만 쓰므로 판은 브라우저에서 돈다)
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT=${PORT:-8799}
 N=${1:-4}

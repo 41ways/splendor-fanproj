@@ -1,5 +1,8 @@
 /* 스플렌더 — 화면과 진행
-   방장(또는 혼자 하기)의 브라우저가 심판이다. 참가자는 자기 시야만 받아서 그린다. */
+   길이 둘이다.
+   - 혼자 하기(봇과): 이 브라우저가 rules.js · ai.js 로 직접 판을 돌린다. 서버를 거치지 않는다.
+   - 친구와(온라인): 서버(game.js)가 심판이다. 여기서는 받은 시야를 그리고 행동만 보낸다.
+   두 길 모두 같은 applyView 로 그리므로 판 화면 코드는 하나다. */
 (function () {
   'use strict';
   var R = window.Rules, AI = window.AI;
@@ -8,7 +11,7 @@
   var SHORT = { w: '다이아', u: '사파이어', g: '에메랄드', r: '루비', k: '오닉스', y: '황금' };
 
   var App = {
-    mode: 'solo', me: 'me', net: null, seats: [], state: null, view: null,
+    mode: 'solo', me: 'me', seats: [], state: null, view: null,
     started: false, skill: 1, botTimer: null, sig: '',
     selCard: null, selDeck: null, gems: [], drop: [],
     coach: true, tip: null, tourStep: 0,
@@ -24,6 +27,7 @@
     // 결과판은 화면 밖에 떠 있어서, 판이 끝난 뒤 방장이 나가 튕기면 첫 화면 위에 그대로 덮여 있었다
     if (which !== 'game') $('over').classList.add('hidden');
     if (which === 'home' || which === 'setup') { $('chatBtn').hidden = true; $('chat').hidden = true; }   // 방 밖에서는 채팅이 갈 곳이 없다
+    pollRooms(which === 'home');                 // 열린 방 목록은 첫 화면에 있는 동안만 훑는다
   }
   var toastTimer = null;
   function toast(msg) {
@@ -59,19 +63,18 @@
     return e;
   }
 
-  /* ---------------- 진행 ---------------- */
+  /* ---------------- 진행 (혼자 하기 — 이 브라우저가 심판) ----------------
+     온라인 판은 서버(game.js)가 같은 일을 한다. 여기 있는 것은 봇과 혼자 할 때만 돈다. */
   function startEngine() {
     if (App.seats.length < 2) { toast('2명 이상이어야 시작할 수 있습니다.'); return; }
     App.started = true;
     App.state = R.newGame(App.seats.map(function (s) {
       return { id: s.id, name: s.name, bot: s.bot };
     }), Math.floor(Math.random() * 1e9));
-    // 판 수 세기 — 방장(또는 혼자 하기)만 보낸다. 참가자도 보내면 한 판이 인원수만큼 세어진다.
+    // 판 수 세기 — 혼자 하기는 내가 방장이다. 온라인 판은 countGame 이 방장 화면에서만 센다.
     App.statAt = Date.now();
     App.statOver = false;
-    if (App.mode !== 'client' && window.norara) {
-      norara.ev('start', { n: App.seats.filter(function (s) { return !s.bot; }).length });
-    }
+    if (window.norara) norara.ev('start', { n: 1 });
 
     clearSel();
     show('game');
@@ -81,11 +84,8 @@
   function clearSel() { App.selCard = null; App.selDeck = null; App.gems = []; App.drop = []; }
 
   function pushViews() {
-    var s = App.state;
-    if (App.mode === 'host' && App.net) {
-      App.net.broadcast(function (pid) { return { t: 'view', view: R.viewFor(s, pid) }; });
-    }
-    applyView(R.viewFor(s, App.me));
+    if (App.mode !== 'solo' || !App.state) return;
+    applyView(R.viewFor(App.state, App.me));
   }
 
   function sigOf(v) {
@@ -124,8 +124,8 @@
   }
 
   function applyView(v) {
-    // 지금 판 중인지 — 방장도 참가자도 알린다(판 수는 방장만 센다)
-    if (window.norara && norara.live) norara.live(v.phase !== 'over');
+    // 지금 판 중인지 — 온라인 판은 상태를 받을 때 countGame 이 알린다
+    if (App.mode === 'solo' && window.norara && norara.live) norara.live(v.phase !== 'over');
     var prev = App.view;
     var sig = sigOf(v);
     if (sig !== App.sig) { clearSel(); App.sig = sig; }
@@ -156,7 +156,7 @@
   }
 
   function scheduleBot() {
-    if (App.mode === 'client') return;
+    if (App.mode !== 'solo') return;          // 온라인 판의 봇은 서버가 둔다
     var s = App.state;
     if (!s || s.phase === 'over') return;
     var p = R.current(s);
@@ -223,19 +223,16 @@
     var k = action + ':' + JSON.stringify(args || []), now = Date.now();
     if (k === lastAct.k && now - lastAct.at < ACT_LOCK_MS) return;
     lastAct = { k: k, at: now };
-    if (App.mode === 'client') { App.net.toHost({ t: 'act', action: action, args: args }); return; }
+    // 온라인 판은 서버가 규칙으로 판정한다. 거절되면 이유가 err 로 와서 토스트로 뜬다.
+    if (App.mode === 'online') { send({ t: 'act', action: action, args: args || [] }); return; }
     doAction(App.me, action, args);
   }
 
   function doAction(pid, action, args) {
     var s = App.state, allowed = ['takeGems', 'buy', 'reserve', 'reserveTop', 'discard', 'pickNoble', 'pass'];
-    if (!s || allowed.indexOf(action) < 0) return;
+    if (App.mode !== 'solo' || !s || allowed.indexOf(action) < 0) return;
     var r = R[action].apply(null, [s, pid].concat(args || []));
-    if (!r.ok) {
-      if (pid === App.me) toast(r.error);
-      else if (App.net) App.net.toPlayer(pid, { t: 'err', msg: r.error });
-      return;
-    }
+    if (!r.ok) { toast(r.error); return; }
     clearSel();
     pushViews();
   }
@@ -552,7 +549,9 @@
       var p = v.players[idx];
       var d = el('div', 'opp' + (v.turn === idx ? ' turn' : ''));
       var l1 = el('div', 'line1');
-      l1.appendChild(el('span', null, p.name + (p.bot ? ' ·봇' : '') + (p.out ? ' (나감)' : '')));
+      var seat = seatOf(p.id);
+      var away = App.mode === 'online' && !p.out && !p.bot && (!seat || !seat.connected);
+      l1.appendChild(el('span', null, p.name + (p.bot ? ' ·봇' : '') + (p.out ? ' (나감)' : '') + (away ? ' (끊김)' : '')));
       if (p.nobles.length) l1.appendChild(el('span', 'kp', p.nobles.map(function (x) { return x.icon; }).join('')));
       l1.appendChild(el('span', 'pt', p.pts + '점'));
       d.appendChild(l1);
@@ -742,14 +741,18 @@
 
   function showOver(v) {
     var list = rankView(v);
-    // 판 하나에 한 번만 — 이 화면은 다시 그릴 때마다 불린다
-    if (App.mode !== 'client' && !App.statOver && window.norara) {
+    // 판 하나에 한 번만 — 이 화면은 다시 그릴 때마다 불린다. 온라인 판은 countGame 이 방장 화면에서 센다.
+    if (App.mode === 'solo' && !App.statOver && window.norara) {
       App.statOver = true;
-      norara.ev('end', {
-        n: App.seats.filter(function (s) { return !s.bot; }).length,
-        sec: Math.round((Date.now() - (App.statAt || Date.now())) / 1000)
-      });
+      norara.ev('end', { n: 1, sec: Math.round((Date.now() - (App.statAt || Date.now())) / 1000) });
     }
+    // 한 판 더 — 혼자면 바로, 온라인이면 방장만 누를 수 있다(모두 대기실로 돌아간다)
+    var host = App.mode === 'solo' || (S && S.hostId === App.me);
+    $('btnRematch').classList.toggle('hidden', !host);
+    $('btnRematch').textContent = App.mode === 'solo' ? '한 판 더' : '대기실로 (한 판 더)';
+    $('overHint').textContent = host ? '' : '방장이 한 판 더를 누르면 모두 대기실로 돌아갑니다.';
+    $('overHint').classList.toggle('hidden', host);
+    $('btnAgain').textContent = App.mode === 'solo' ? '처음으로' : '나가기';
 
     var win = list[0];
     $('overTitle').textContent = win.id === v.me ? '이겼습니다' : win.name + ' 승리';
@@ -764,108 +767,294 @@
     $('over').classList.remove('hidden');
   }
 
+  /* ---------------- 온라인 — 서버와 잇기 ----------------
+     서버(Cloudflare 무료 플랜)는 켜져 있는 시간이 한도라서, 20분 동안 아무 조작이 없으면
+     서버가 연결을 닫는다(4000). 그때는 스스로 다시 붙지 않고 화면을 다시 만질 때 이어 붙는다.
+     켜 두기만 한 탭이 서버를 붙잡아 두지 않게. 자리는 탭마다 sessionStorage 에 적어 두어
+     새로고침해도 같은 자리로 돌아온다. */
+  var ws = null, S = null, pingT = null, resting = false, restWhy = 0, wokeUp = false;
+  var store = (function () {
+    try { var t = window.sessionStorage; t.getItem('x'); return t; }
+    catch (e) {                                  // 막힌 브라우저에서도 판은 돌게 — 새로고침 복귀만 안 된다
+      var m = {};
+      return { getItem: function (k) { return m[k] || null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } };
+    }
+  })();
+  var seated = function () { return !!(store.getItem('code') && store.getItem('token')); };
+
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+  function resume() {
+    connect(function () {
+      if (seated()) send({ t: 'resume', code: store.getItem('code'), token: store.getItem('token') });
+    });
+  }
+
+  function wake(e) {
+    if (!resting) return;
+    if (e.type === 'visibilitychange' && (document.hidden || restWhy === 4001)) return;   // 넘겨준 자리는 눌러서만 되찾는다
+    resting = false;
+    $('toast').classList.remove('on');
+    if (seated()) { wokeUp = true; resume(); }
+    else if (!$('home').classList.contains('hidden')) pollRooms(true);
+  }
+  ['pointerdown', 'keydown'].forEach(function (t) { addEventListener(t, wake, true); });
+  document.addEventListener('visibilitychange', wake);
+
+  function connect(onOpen) {
+    if (ws && ws.readyState === 1) { if (onOpen) onOpen(); return; }
+    // 붙는 중이던 옛 소켓(만들기 연타 등)은 손을 떼고 닫는다. 그대로 두면 나중에 그게 닫힐 때
+    // 지금 소켓의 ping 을 꺼 버려서, 멀쩡한 연결이 끊긴 것으로 처리된다.
+    if (ws) { ws.onopen = ws.onmessage = ws.onclose = null; try { ws.close(); } catch (e) {} }
+    var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    var sock = ws = new WebSocket(proto + '://' + location.host + '/ws');
+
+    sock.onopen = function () {
+      if (sock !== ws) return;
+      clearInterval(pingT);
+      pingT = setInterval(function () { send({ t: 'ping' }); }, 25000);   // 서버가 끊긴 탭을 가려낼 수 있게
+      if (onOpen) onOpen();
+    };
+    sock.onmessage = function (e) {
+      if (sock !== ws) return;
+      var m; try { m = JSON.parse(e.data); } catch (err) { return; }
+      if (m.t === 'moved' || m.t === 'idle') {             // 곧 닫힌다 — 닫힘 코드가 중간에 떨어져도 알 수 있게
+        sock.why = m.t;
+        sock.onclose({ code: m.t === 'moved' ? 4001 : 4000 });   // 닫힘이 늦게 오거나 안 와도 여기서 멈춘다
+        ws = null;
+        try { sock.close(); } catch (err) {}
+        return;
+      }
+      onServer(m);
+    };
+    sock.onclose = function (e) {
+      if (sock !== ws) return;
+      clearInterval(pingT);
+      var code = sock.why === 'moved' ? 4001 : sock.why === 'idle' ? 4000 : e.code;
+      // 4000: 오래 조작이 없어 서버가 닫음 · 4001: 다른 탭이 이 자리를 이어받음(탭 복제 등)
+      // 둘 다 스스로 다시 붙지 않는다 — 붙으면 서로를 밀어내며 끝없이 오간다. 누를 때 다시 붙는다.
+      if (code === 4000 || code === 4001) {
+        resting = true; restWhy = code;
+        pollRooms(false);
+        if (!seated()) return;                     // 방 목록만 보던 연결 — 말없이 쉬었다가 누르면 다시 훑는다
+        var t = $('toast');
+        t.textContent = code === 4000
+          ? '한동안 조작이 없어서 연결을 쉬고 있습니다. 아무 곳이나 누르면 다시 붙습니다.'
+          : '다른 창에서 이 자리를 이어받았습니다. 여기서 계속하려면 아무 곳이나 누르세요.';
+        t.classList.add('on');
+        clearTimeout(toastTimer);                  // 누를 때까지 떠 있게
+        return;
+      }
+      ws = null;
+      if (seated()) {
+        toast('연결이 끊겼습니다. 다시 붙는 중…');
+        setTimeout(function () { if (!ws && seated() && !resting) resume(); }, 1200);
+      }
+    };
+  }
+
+  /** 서버 연결을 내려놓는다 — 혼자 하기에는 필요 없다. 붙여 두면 서버가 괜히 깨어 있다. */
+  function hangUp() {
+    pollRooms(false);
+    clearInterval(pingT);
+    if (ws) { ws.onopen = ws.onmessage = ws.onclose = null; try { ws.close(); } catch (e) {} }
+    ws = null;
+  }
+
+  var leaving = false;          // 끊긴 채 나가느라 잠깐 붙은 동안 — 대기실 화면이 번쩍 뜨지 않게 흘려보낸다
+  function onServer(m) {
+    if (leaving) {
+      if (m.t !== 'left' && m.t !== 'err') return;          // 떠나는 방의 상태·채팅은 받지 않는다
+      leaving = false;
+      if (m.t === 'err') return;
+    }
+    switch (m.t) {
+      case 'welcome':
+        wokeUp = false; entering = 0;
+        App.mode = 'online';
+        if (m.code !== chatRoom) { chatRoom = m.code; chatReset(); }   // 다른 방이면 채팅을 비운다
+        App.me = m.you;
+        store.setItem('code', m.code);
+        store.setItem('token', m.token);
+        try { history.replaceState(null, '', location.pathname + '?room=' + m.code); } catch (e) {}
+        pollRooms(false);
+        break;
+
+      case 'state':
+        if (App.mode !== 'online') return;           // 혼자 하기로 넘어간 뒤 늦게 온 것
+        countGame(m);                                // S 를 덮기 전에 — 직전 phase 가 있어야 전이를 잡는다
+        S = m;
+        App.me = m.you;
+        App.seats = m.players;
+        if (m.phase === 'lobby') {
+          App.view = null; App.started = false;
+          show('lobby');
+          renderLobby();
+        } else if (m.view) {
+          App.started = true;
+          if ($('game').classList.contains('hidden')) { clearSel(); show('game'); }
+          syncChatVisible();
+          applyView(m.view);
+        }
+        break;
+
+      case 'chat':
+        addChat(m.name, m.text, m.from === App.me);
+        break;
+
+      case 'ev':
+        if (m.kind === 'joined' && m.by !== App.me) toast(m.name + ' 참가');
+        else if (m.kind === 'left') toast(m.name + ' 나감');
+        else if (m.kind === 'dropped') toast(m.name + ' — 연결이 끊겨 판에서 빠졌습니다');
+        break;
+
+      case 'rooms':
+        roomList = m.list || [];
+        paintRooms();
+        break;
+
+      case 'err':
+        entering = 0;
+        // 오래 쉬다 돌아왔는데 그사이 방이 정리된 경우 — 무엇 때문인지 알려 준다
+        toast(m.fatal && wokeUp ? '오래 비워 둔 사이 방이 정리됐습니다. 새로 만들어 주세요.' : m.msg);
+        if (m.fatal) {
+          wokeUp = false;
+          store.removeItem('code'); store.removeItem('token');
+          try { history.replaceState(null, '', location.pathname); } catch (e) {}
+          App.mode = 'solo'; S = null;
+          show('setup');
+        }
+        break;
+    }
+  }
+
+  /* 판 수 세기 — 방장 화면에서만 보낸다. 사람마다 보내면 한 판이 인원수만큼 세어진다.
+     "지금 판 중인가" 는 참가자도 상태를 받을 때마다 알린다. */
+  function countGame(m) {
+    if (window.norara && norara.live) norara.live(m.phase === 'playing');
+    if (!window.norara || !m.players || m.hostId !== m.you) return;
+    var humans = m.players.filter(function (p) { return !p.bot; }).length;
+    // 시작은 대기실에서 넘어오는 순간만 센다 — 판 중에 새로고침으로 돌아온 방장이 한 번 더 세지 않게
+    if (m.phase === 'playing' && S && S.phase === 'lobby') {
+      App.statAt = Date.now();
+      norara.ev('start', { n: humans });
+    } else if (m.phase === 'over' && (!S || S.phase !== 'over') && App.statAt) {
+      norara.ev('end', { n: humans, sec: Math.round((Date.now() - App.statAt) / 1000) });
+      App.statAt = 0;
+    }
+  }
+
+  // 만들기·참가를 연달아 누르면(더블탭 · Enter 와 클릭) 자리가 둘 생긴다. 답이 올 때까지 한 번만 보낸다.
+  var entering = 0;
+  function enter(msg) {
+    if (Date.now() - entering < 4000) return;
+    entering = Date.now();
+    store.removeItem('code'); store.removeItem('token');
+    try { localStorage.setItem('splendor.name', myName()); } catch (e) {}
+    App.mode = 'online'; S = null;
+    toast('접속 중…');
+    connect(function () { send(msg); });
+  }
+
+  function leave() {
+    var code = store.getItem('code'), token = store.getItem('token');
+    store.removeItem('code'); store.removeItem('token');
+    resting = false; wokeUp = false;
+    $('toast').classList.remove('on');
+    if (ws && ws.readyState === 1) send({ t: 'leave' });
+    else if (code && token) {
+      // 끊겨 있으면 잠깐 붙어서 자리를 비우고 나온다. 안 그러면 서버에는 자리가 그대로 남는다.
+      leaving = true;
+      connect(function () { send({ t: 'resume', code: code, token: token }); send({ t: 'leave' }); });
+    }
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    App.mode = 'solo'; S = null; App.view = null; App.started = false;
+    chatRoom = null; chatReset();                // 떠난 방의 말 · 안 읽은 수 · 탭 제목 (n) 을 들고 나가지 않는다
+    show('home');
+  }
+
   /* ---------------- 대기실 ---------------- */
-  function renderSeats(list, hostView) {
-    syncChatVisible(list);          // 대기실에서도 채팅이 되어야 한다
+  function renderLobby() {
+    var isHost = S.hostId === App.me;
+    syncChatVisible();                              // 대기실에서도 채팅이 되어야 한다
+    $('roomCode').textContent = S.code;
+    $('lobbyHint').textContent = isHost
+      ? '친구에게 코드나 초대 링크를 보내세요.' + (S.cfg.priv ? ' 비공개 방이라 목록에는 안 보입니다.' : '')
+      : '방장이 시작하기를 기다리는 중…';
+
     var box = $('seats'); box.innerHTML = '';
-    list.forEach(function (s, i) {
+    S.players.forEach(function (p) {
       var row = el('div', 'seat');
-      row.appendChild(el('span', 'who', s.name));
-      if (i === 0) row.appendChild(el('span', 'mark', '방장'));
-      if (s.bot) row.appendChild(el('span', 'mark', '봇'));
+      row.appendChild(el('span', 'who', p.name));
+      if (p.id === App.me) row.appendChild(el('span', 'mark', '나'));
+      if (p.id === S.hostId) row.appendChild(el('span', 'mark', '방장'));
+      if (p.bot) row.appendChild(el('span', 'mark', '봇'));
+      if (!p.bot && !p.connected) row.appendChild(el('span', 'mark off', '끊김'));
+      if (isHost && p.id !== S.hostId) {
+        var x = el('button', 'kick', '✕');
+        x.title = '내보내기';
+        x.setAttribute('aria-label', p.name + ' 내보내기');
+        x.onclick = function () { send({ t: 'kick', id: p.id }); };
+        row.appendChild(x);
+      }
       box.appendChild(row);
     });
-    for (var k = list.length; k < 4; k++) {
+    for (var k = S.players.length; k < S.max; k++) {
       var e2 = el('div', 'seat'); e2.style.opacity = '.4';
       e2.appendChild(el('span', 'who', '빈 자리'));
       box.appendChild(e2);
     }
-    $('hostControls').classList.toggle('hidden', !hostView);
-    $('btnStart').disabled = list.length < 2;
-    $('btnAddBot').disabled = list.length >= 4;
+
+    $('hostControls').classList.toggle('hidden', !isHost);
+    $('hostCfg').classList.toggle('hidden', !isHost);
+    $('lobbySkill').value = String(S.cfg.skill);
+    $('lobbyPriv').checked = !!S.cfg.priv;
+    var skillName = { '0.5': '쉬움', '0.8': '보통', '1': '어려움' }[String(S.cfg.skill)] || '보통';
+    $('guestCfg').textContent = '봇 실력 ' + skillName + (S.cfg.priv ? ' · 비공개 방' : '');
+    $('guestCfg').classList.toggle('hidden', isHost);
+    $('btnStart').disabled = S.players.length < S.min;
+    $('btnAddBot').disabled = S.players.length >= S.max;
   }
 
-  function broadcastLobby() {
-    if (!App.net) return;
-    var list = App.seats.map(function (s) { return { name: s.name, bot: s.bot }; });
-    App.net.broadcast(function () { return { t: 'lobby', seats: list }; });
+  /* ---------------- 열린 방 ----------------
+     첫 화면에 있는 동안만 훑는다 — 방에 들어가거나 다른 화면으로 가면 멈춘다. */
+  var roomList = [], roomsT = null;
+  function askRooms() {
+    if (resting) return;
+    connect(function () { send({ t: 'rooms' }); });
   }
-
-  /* ---------------- 방장 / 참가자 ---------------- */
-  function beHost() {
-    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
-    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
-    App.mode = 'host'; App.me = 'host';
-    App.seats = [{ id: 'host', name: myName(), bot: false }];
-    App.net = new Net();
-    App.net.on.status = toast;
-    App.net.on.error = toast;
-    App.net.on.open = function (code) {
-      $('roomCode').textContent = code;
-      $('lobbyHint').textContent = '친구에게 이 코드를 알려주세요.';
-      show('lobby'); renderSeats(App.seats, true);
-    };
-    App.net.on.join = function (pid, name) {
-      if (App.started || App.seats.length >= 4) {
-        App.net.toPlayer(pid, { t: 'err', msg: App.started ? '이미 시작된 방입니다.' : '자리가 찼습니다.', fatal: true });
-        App.net.kick(pid);                         // 붙여 두면 관전자처럼 판 화면을 계속 받는다
-        return;
-      }
-      var base = name, n = 2;
-      while (App.seats.some(function (s) { return s.name === name; })) name = base + n++;
-      App.seats.push({ id: pid, name: name, bot: false });
-      renderSeats(App.seats, true); broadcastLobby(); toast(name + ' 참가');
-    };
-    App.net.on.leave = function (pid) {
-      var seat = seatOf(pid); if (!seat) return;
-      App.seats = App.seats.filter(function (s) { return s.id !== pid; });
-      if (App.started && App.state) { R.dropPlayer(App.state, pid); pushViews(); }
-      else { renderSeats(App.seats, true); broadcastLobby(); }
-      toast(seat.name + ' 나감');
-    };
-    App.net.on.data = function (pid, msg) {
-      if (msg.t === 'act' && App.started) doAction(pid, msg.action, msg.args || []);
-      else if (msg.t === 'chat') relayChat(pid, msg.text);
-    };
-    App.net.host();
+  function pollRooms(on) {
+    clearInterval(roomsT);
+    roomsT = null;
+    if (!on || seated() || !window.WebSocket) return;
+    askRooms();
+    roomsT = setInterval(function () { if (!document.hidden) askRooms(); }, 6000);
   }
-
-  function beClient(code) {
-    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
-    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
-    App.mode = 'client';
-    App.net = new Net();
-    App.net.on.status = toast;
-    App.net.on.error = function (m) { toast(m); show('home'); App.net.close(); };
-    App.net.on.open = function (c) {
-      // 방장은 나를 내 연결 id 로 부른다. 판이 시작되기 전에도 알고 있어야
-      // 대기실에서 내가 친 채팅을 내 것으로 알아본다(안 그러면 남의 말처럼 보이고 알림까지 센다).
-      if (App.net.peer && App.net.peer.id) App.me = App.net.peer.id;
-      $('roomCode').textContent = c;
-      $('lobbyHint').textContent = '방장이 시작하기를 기다리는 중…';
-      show('lobby'); renderSeats([], false);
-    };
-    App.net.on.data = function (_, msg) {
-      if (msg.t === 'lobby') {
-        // 참가자는 자리 목록을 여기서만 받는다. 기억해 두지 않으면
-        // 판이 시작된 뒤 사람 수를 셀 수 없어 채팅이 사라져 버린다.
-        App.seats = msg.seats || [];
-        renderSeats(App.seats, false);
-      }
-      else if (msg.t === 'view') {
-        App.me = msg.view.me;
-        if ($('game').classList.contains('hidden')) show('game');
-        applyView(msg.view);
-      } else if (msg.t === 'chat') addChat(msg.name, msg.text, msg.from === App.me);
-      else if (msg.t === 'err') {
-        toast(msg.msg);
-        // 방장이 받지 않았다 — 대기실에 남겨 두지 않는다. 스플렌더의 방 고르기 화면은 'setup' 이다
-        // (다빈치코드의 'menu' 를 그대로 옮겨 적어 모든 화면이 가려진 빈 페이지가 됐었다)
-        if (msg.fatal) { App.net.close(); show('setup'); }
-      }
-    };
-    App.net.join(code, myName());
+  function paintRooms() {
+    var box = $('roomsList');
+    $('roomsN').textContent = roomList.length ? roomList.length + '곳' : '';
+    if (!roomList.length) {
+      box.innerHTML = '<p class="rooms-none">지금은 기다리는 방이 없습니다 — 방을 만들어 링크를 보내 보세요.</p>';
+      return;
+    }
+    box.innerHTML = roomList.map(function (r) {
+      return '<button class="room-row" data-code="' + esc(r.code) + '">' +
+        '<span class="rc">' + esc(r.code) + '</span>' +
+        '<span class="rn">' + esc(r.host || '누군가') + ' 님 방 · ' + r.n + '/' + r.max + (r.bots ? ' (봇 ' + r.bots + ')' : '') + '</span>' +
+        '<span class="rt">' + (r.age < 60 ? '방금' : Math.floor(r.age / 60) + '분 전') + '</span></button>';
+    }).join('');
   }
+  $('roomsList').addEventListener('click', function (e) {
+    var row = e.target.closest('[data-code]');
+    if (!row) return;
+    // 이름은 고르는 화면에서 정한다 — 코드를 채워 두고 그리로 보낸다
+    $('joinCode').value = row.dataset.code;
+    show('setup');
+    toast('이름을 확인하고 참가를 누르세요.');
+    $('btnJoin').classList.add('flash');
+    setTimeout(function () { $('btnJoin').classList.remove('flash'); }, 1600);
+  });
+  $('btnRooms').onclick = askRooms;
 
 
   /* ---------------- 첫 안내 ---------------- */
@@ -916,35 +1105,61 @@
 
   /* ---------------- 버튼 ---------------- */
   $('btnSolo').onclick = function () {
+    // 혼자 하기는 서버를 거치지 않는다 — 방 목록을 보느라 붙어 있던 연결도 내려놓는다
+    hangUp();
+    store.removeItem('code'); store.removeItem('token');
     var count = parseInt($('soloCount').value, 10);
     App.skill = parseFloat($('soloSkill').value);
-    App.mode = 'solo'; App.me = 'me';
+    App.mode = 'solo'; App.me = 'me'; S = null;
     App.seats = [{ id: 'me', name: myName(), bot: false }];
     var names = ['봇 하나', '봇 둘', '봇 셋'];
     for (var i = 0; i < count - 1; i++) App.seats.push({ id: 'bot' + i, name: names[i], bot: true });
+    chatReset();
     startEngine();
   };
   $('btnHost').onclick = function () {
-    if (!window.Peer) { toast('통신 모듈을 불러오지 못했습니다.'); return; }
-    beHost();
+    if (!window.WebSocket) { toast('이 브라우저는 온라인 대전을 지원하지 않습니다.'); return; }
+    enter({ t: 'create', name: myName(), priv: $('hostPriv').checked, skill: parseFloat($('soloSkill').value) });
   };
-  $('btnJoin').onclick = function () {
+  function doJoin() {
     var code = $('joinCode').value.trim().toUpperCase();
     if (code.length !== 4) { toast('방 코드 4자리를 입력해 주세요.'); return; }
-    if (!window.Peer) { toast('통신 모듈을 불러오지 못했습니다.'); return; }
-    beClient(code);
+    if (!window.WebSocket) { toast('이 브라우저는 온라인 대전을 지원하지 않습니다.'); return; }
+    enter({ t: 'join', code: code, name: myName() });
+  }
+  $('btnJoin').onclick = doJoin;
+  $('joinCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doJoin(); });
+  $('btnAddBot').onclick = function () { send({ t: 'addBot' }); };
+  $('btnStart').onclick = function () { send({ t: 'start' }); };
+  $('lobbySkill').onchange = function () { send({ t: 'cfg', skill: parseFloat(this.value) }); };
+  $('lobbyPriv').onchange = function () { send({ t: 'cfg', priv: this.checked }); };
+  $('btnCopy').onclick = function () {
+    if (!S) return;
+    var url = location.origin + location.pathname + '?room=' + S.code;
+    var done = function () { toast('초대 링크를 복사했습니다'); };
+    try { navigator.clipboard.writeText(url).then(done, function () { toast(url); }); }
+    catch (e) { toast(url); }
   };
-  $('joinCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btnJoin').click(); });
-  $('btnAddBot').onclick = function () {
-    if (App.seats.length >= 4) return;
-    var names = ['봇 하나', '봇 둘', '봇 셋'];
-    var used = App.seats.filter(function (s) { return s.bot; }).length;
-    App.seats.push({ id: 'bot' + used + '-' + Date.now(), name: names[used] || ('봇 ' + (used + 1)), bot: true });
-    renderSeats(App.seats, true); broadcastLobby();
+  $('btnLeave').onclick = leave;
+  // 판 중에 나가기 — 온라인이면 내 자리는 판에서 빠지고(쥔 보석은 은행으로) 남은 사람끼리 계속한다
+  $('btnQuit').onclick = function () {
+    var live = App.view && App.view.phase !== 'over';
+    if (live && !confirm(App.mode === 'online' ? '나가면 이 판에서 빠집니다. 나갈까요?' : '이 판을 그만둘까요?')) return;
+    quit();
   };
-  $('btnStart').onclick = function () { startEngine(); };
-  $('btnLeave').onclick = function () { if (App.net) App.net.close(); location.reload(); };
-  $('btnAgain').onclick = function () { if (App.net) App.net.close(); location.reload(); };
+  function quit() {
+    clearTimeout(App.botTimer);
+    if (App.mode === 'online') { leave(); return; }
+    App.state = null; App.view = null; App.started = false;
+    show('home');
+  }
+  $('btnAgain').onclick = quit;
+  $('btnRematch').onclick = function () {
+    if (App.mode === 'online') { send({ t: 'again' }); return; }
+    $('over').classList.add('hidden');
+    App.moveKey = '';
+    startEngine();
+  };
   $('btnBegin').onclick = function () { show('setup'); };   // 자동 포커스는 안 준다 — 모바일에서 자판이 튀어나온다
   $('btnBack').onclick = function () { show('home'); };
   $('btnRules').onclick = function () { tourShow(0); };
@@ -985,35 +1200,18 @@
 
   /* ---------------- 채팅 ----------------
      같은 방 사람끼리만 오간다. 판정과는 무관하고 어디에도 저장되지 않는다.
-     방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
+     서버가 받아서 같은 방 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
 
-  var chatUnread = 0, chatLast = {};      // 도배 방지는 사람마다 따로 센다
+  var chatUnread = 0, chatRoom = null;
   /** 새 방에 들어오면 채팅을 비운다. 안 그러면 전 방에서 오간 말이 새 방 채팅창에 그대로 남는다. */
   function chatReset() {
     $('chatLog').textContent = '';
     $('chat').hidden = true;
-    chatUnread = 0; chatLast = {}; chatBadge(); chatPeekOff();
+    chatUnread = 0; chatBadge(); chatPeekOff();
     chatAway = 0; chatTitle();
   }
-  function chatSeatName(pid) {
-    for (var i = 0; i < App.seats.length; i++) if (App.seats[i].id === pid) return App.seats[i].name;
-    return '?';
-  }
-  function relayChat(pid, text) {
-    text = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 200);
-    if (!text) return;
-    var now = Date.now();
-    // 한 사람이 몰아치는 것만 막는다. 전체를 하나로 세면
-    // 두 사람이 동시에 말할 때 한쪽 말이 소리 없이 사라진다.
-    if (now - (chatLast[pid] || 0) < 350) return;
-    chatLast[pid] = now;
-    var out = { t: 'chat', from: pid, name: chatSeatName(pid), text: text };
-    App.net.broadcast(function () { return out; });
-    addChat(out.name, text, pid === App.me);
-  }
   function chatSend(text) {
-    if (App.mode === 'client') App.net.toHost({ t: 'chat', text: text });
-    else relayChat(App.me, text);
+    if (App.mode === 'online') send({ t: 'chat', text: text });   // 서버가 같은 방 모두에게 돌려준다(나 포함)
   }
   function chatOpen(on) {
     $('chat').hidden = !on;
@@ -1073,7 +1271,7 @@
     var seats = list || App.seats || [];
     var humans = 0;
     seats.forEach(function (st) { if (!st.bot) humans++; });
-    var on = App.mode !== 'solo' && humans > 1;
+    var on = App.mode === 'online' && humans > 1;
     $('chatBtn').hidden = !on;
     if (!on) { $('chat').hidden = true; chatPeekOff(); }
     else $('chatWho').textContent = humans + '명';
@@ -1089,6 +1287,22 @@
   };
   $('chatText').onkeydown = function (e) { if (e.key === 'Escape') chatOpen(false); };
 
+  /* ---------------- 시작 ----------------
+     초대 링크(?room=CODE)로 왔으면 참가 칸에 코드를 채워 고르는 화면으로.
+     이 탭이 앉아 있던 자리가 있으면(새로고침) 곧바로 그 자리로 돌아간다. */
+  (function () {
+    var invited = '';
+    try { invited = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); } catch (e) {}
+    if (invited) $('joinCode').value = invited;
+    if (seated() && window.WebSocket) {
+      App.mode = 'online';
+      noticeClose();                             // 새로고침으로 돌아온 것 — 들어올 때 안내는 이미 봤다
+      resume();
+    } else if (invited) show('setup');
+    else show('home');
+  })();
+
   App.act = act; App.doAction = doAction; App.pushViews = pushViews; App.render = render;
+  App.S = function () { return S; };
   window.__sp = App;
 })();

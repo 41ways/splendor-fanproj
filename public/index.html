@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>스플렌더</title>
+<meta name="description" content="스플렌더 보드게임. 방 코드나 초대 링크로 최대 4인 온라인, 혼자면 봇과.">
+<meta name="theme-color" content="#151318">
+<meta property="og:title" content="스플렌더">
+<meta property="og:description" content="보석을 모아 개발 카드를 사고, 귀족을 불러 15점을 먼저 넘기는 게임.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23151318'/%3E%3Cpath d='M16 5l8 7-8 15-8-15z' fill='%2360d2c0'/%3E%3Cpath d='M16 5l8 7H8z' fill='%23a9f0e4'/%3E%3C/svg%3E">
+<script>
+// 스타일시트보다 먼저 테마를 정해 둔다. 안 그러면 어두운 화면이 한 번 번쩍인다.
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('splendor.theme'); } catch (e) {}
+  if (t !== 'light' && t !== 'dark') {
+    t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css?v=89ad4581">
+</head>
+<body>
+
+<!-- 그림 조각 — 카드 아트와 보석 문양. 파일을 따로 받지 않도록 전부 여기 그려 둔다. -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <!-- 깎아 놓은 보석 -->
+  <symbol id="i-gem" viewBox="0 0 24 24">
+    <path d="M12 2.4 3.2 9 12 21.6 20.8 9z" fill="currentColor"/>
+    <path d="M12 2.4 7.5 9h9z" fill="#fff" opacity=".5"/>
+    <path d="M3.2 9h4.3l4.5-6.6z" fill="#fff" opacity=".24"/>
+    <path d="M20.8 9h-4.3L12 2.4z" fill="#000" opacity=".14"/>
+    <path d="M7.5 9 12 21.6 3.2 9z" fill="#fff" opacity=".13"/>
+    <path d="M16.5 9 12 21.6 20.8 9z" fill="#000" opacity=".2"/>
+    <path d="M3.2 9h17.6" stroke="#fff" stroke-opacity=".3" stroke-width=".7"/>
+  </symbol>
+
+  <!-- 1단계 — 원석이 나오는 광산 -->
+  <symbol id="i-art1" viewBox="0 0 100 62">
+    <path d="M0 62 27 18l17 24 13-17 21 37z" opacity=".85"/>
+    <path d="M12 62 18 40l7 22zM72 62l6-24 7 24z"/>
+    <path d="M50 30 45 36l5 9 5-9z" opacity=".7"/>
+  </symbol>
+
+  <!-- 2단계 — 세공 공방의 아치 -->
+  <symbol id="i-art2" viewBox="0 0 100 62">
+    <path d="M22 62V34a28 28 0 0 1 56 0v28h-8V34a20 20 0 0 0-40 0v28z" opacity=".6"/>
+    <path d="M50 24 42 32l8 15 8-15z" opacity=".9"/>
+    <rect x="12" y="57" width="76" height="5" rx="2" opacity=".45"/>
+  </symbol>
+
+  <!-- 3단계 — 왕관 -->
+  <symbol id="i-art3" viewBox="0 0 100 62">
+    <path d="M30 46 24 18l13 11L50 10l13 19 13-11-6 28z" opacity=".85"/>
+    <rect x="29" y="49" width="42" height="6" rx="3" opacity=".85"/>
+    <path d="M50 12 46 17l4 7 4-7z" opacity=".5"/>
+  </symbol>
+
+  <!-- 귀족 초상 자리 -->
+  <symbol id="i-bust" viewBox="0 0 100 100">
+    <circle cx="50" cy="36" r="17"/>
+    <path d="M18 100c0-19 14-29 32-29s32 10 32 29z"/>
+    <path d="M50 71c-5 7-9 12-9 12l9 17 9-17s-4-5-9-12z" opacity=".45"/>
+  </symbol>
+
+  <!-- 더미 뒷면 문양 -->
+  <symbol id="i-back" viewBox="0 0 60 100">
+    <path d="M30 14 20 25l10 17 10-17z" opacity=".9"/>
+    <path d="M16 52 8 61l8 13 8-13zM44 52l-8 9 8 13 8-13z" opacity=".55"/>
+    <path d="M30 80l-7 8 7 11 7-11z" opacity=".35"/>
+  </symbol>
+</svg>
+
+<!-- 타이틀 -->
+<section id="home" class="screen">
+  <div class="wrap">
+    <div class="topline">
+      <span class="kicker">보드게임 · 1–4인</span>
+      <label class="sw theme"><input type="checkbox" class="theme-in"><span class="track"></span><span class="lbl">☾</span></label>
+    </div>
+
+    <div class="hero">
+      <div class="fan">
+        <svg class="gemicon g-k"><use href="#i-gem"/></svg>
+        <svg class="gemicon g-u"><use href="#i-gem"/></svg>
+        <svg class="gemicon g-w big"><use href="#i-gem"/></svg>
+        <svg class="gemicon g-g"><use href="#i-gem"/></svg>
+        <svg class="gemicon g-r"><use href="#i-gem"/></svg>
+      </div>
+      <h1>스플렌더</h1>
+      <p class="tag">보석을 모아 개발 카드를 삽니다.<br>카드는 다음 카드를 깎아주고, 귀족은 알아서 찾아옵니다.</p>
+
+      <div class="hero-acts">
+        <button id="btnBegin" class="primary big">시작하기</button>
+        <button id="btnRules" class="learn">가이드</button>
+      </div>
+
+      <!-- 열린 방 — 시작 전이고 자리가 남은 공개 방. 누르면 코드를 채워 고르는 화면으로 간다 -->
+      <div class="rooms" id="rooms">
+        <div class="rooms-head">
+          <b>열린 방</b>
+          <span class="rooms-n" id="roomsN"></span>
+          <button id="btnRooms" class="linkbtn" type="button">새로 보기</button>
+        </div>
+        <div class="rooms-list" id="roomsList"><p class="rooms-none">방 목록을 불러오는 중…</p></div>
+      </div>
+
+    </div>
+      <p class="legal">이 프로젝트는 보드게임 『스플렌더』를 구현한 학습 목적의 비공식 팬 프로젝트입니다.<br>본 프로젝트는 비영리이며, 어떠한 수익도 발생시키지 않습니다.<br>『스플렌더』의 명칭 및 관련 상표에 대한 모든 권리는 원권리자에게 있습니다.<br>게임 내 모든 이미지는 이모지 및 AI로 생성한 창작물입니다.<br>원권리자의 요청이 있을 경우 즉시 프로젝트를 비공개 전환 또는 삭제하겠습니다.<br>문의: gyolno2@naver.com</p>
+  </div>
+</section>
+
+<!-- 어떻게 할지 고르기 -->
+<section id="setup" class="screen hidden">
+  <div class="wrap">
+    <div class="topline">
+      <button id="btnBack" class="back">← 타이틀</button>
+      <label class="sw theme"><input type="checkbox" class="theme-in"><span class="track"></span><span class="lbl">☾</span></label>
+    </div>
+
+    <label class="namerow">
+      <span>이름</span>
+      <input id="name" maxlength="12" placeholder="비워두면 이름없음" autocomplete="off">
+    </label>
+
+    <div class="block">
+      <h2>혼자 연습</h2>
+      <div class="row">
+        <label class="field grow"><span>인원</span>
+          <select id="soloCount">
+            <option value="2">2인</option>
+            <option value="3">3인</option>
+            <option value="4" selected>4인</option>
+          </select>
+        </label>
+        <label class="field grow"><span>봇 실력</span>
+          <select id="soloSkill">
+            <option value="0.5">쉬움</option>
+            <option value="0.8" selected>보통</option>
+            <option value="1">어려움</option>
+          </select>
+        </label>
+      </div>
+      <button id="btnSolo" class="primary">봇과 시작</button>
+    </div>
+
+    <div class="block">
+      <h2>친구와 · 최대 4인</h2>
+      <label class="check"><input type="checkbox" id="hostPriv"> 비공개 방 <span class="fine-in">— 열린 방 목록에 안 보이고 코드·링크로만 들어옵니다</span></label>
+      <button id="btnHost" class="primary">방 만들기</button>
+      <div class="row">
+        <input id="joinCode" class="grow code-in" maxlength="4" placeholder="방 코드" autocomplete="off">
+        <button id="btnJoin">참가</button>
+      </div>
+      <p class="fine">서버가 심판을 맡습니다. 방장이 나가도 판은 이어지고, 새로고침해도 자리로 돌아옵니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 대기실 -->
+<section id="lobby" class="screen hidden">
+  <div class="wrap">
+    <div class="topline">
+      <span class="kicker">대기실</span>
+      <label class="sw theme"><input type="checkbox" class="theme-in"><span class="track"></span><span class="lbl">☾</span></label>
+    </div>
+    <h2 class="sub">방 코드</h2>
+    <div class="code" id="roomCode">····</div>
+    <button id="btnCopy" class="copy">초대 링크 복사</button>
+    <p class="fine" id="lobbyHint">친구에게 코드나 초대 링크를 보내세요.</p>
+    <div id="seats" class="seats"></div>
+    <div id="hostCfg" class="block cfg">
+      <label class="field"><span>봇 실력</span>
+        <select id="lobbySkill">
+          <option value="0.5">쉬움</option>
+          <option value="0.8">보통</option>
+          <option value="1">어려움</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="lobbyPriv"> 비공개 방 <span class="fine-in">— 열린 방 목록에 안 보입니다</span></label>
+    </div>
+    <p class="fine hidden" id="guestCfg"></p>
+    <div class="row" id="hostControls">
+      <button id="btnAddBot" class="grow">봇 추가</button>
+      <button id="btnStart" class="primary grow">시작</button>
+    </div>
+    <button id="btnLeave" class="ghost">나가기</button>
+  </div>
+</section>
+
+<!-- 게임 -->
+<section id="game" class="screen wide hidden">
+  <div class="board-wrap">
+    <header class="bar">
+      <span id="turnInfo">—</span>
+      <span class="spacer"></span>
+      <span id="roundInfo" class="fine"></span>
+      <label class="sw"><input type="checkbox" id="coach"><span class="track"></span><span class="lbl">도우미</span></label>
+      <label class="sw theme"><input type="checkbox" class="theme-in"><span class="track"></span><span class="lbl">☾</span></label>
+      <button id="btnHelp" class="mini">도움말</button>
+      <button id="btnQuit" class="mini">나가기</button>
+    </header>
+
+    <div id="nobles" class="nobles"></div>
+    <div id="rows" class="rows"></div>
+    <div id="bank" class="bank"></div>
+
+    <div id="mine" class="mine"></div>
+    <div id="panel" class="panel"></div>
+
+    <div id="others" class="others"></div>
+    <div id="log" class="log"></div>
+  </div>
+</section>
+
+<!-- 결과 -->
+<!-- 누가 방금 무엇을 했는지 — 봇이 조용히 움직이면 판이 왜 바뀌었는지 알 수 없다 -->
+<div id="move" class="movebar"><span class="mv-who"></span><span class="mv-what"></span></div>
+
+<div id="over" class="overlay hidden">
+  <div class="sheet">
+    <div class="big" id="overTitle">—</div>
+    <div id="overTable" class="scores"></div>
+    <button id="btnRematch" class="primary">한 판 더</button>
+    <p class="fine hidden" id="overHint"></p>
+    <button id="btnAgain" class="ghost">처음으로</button>
+  </div>
+</div>
+
+<!-- 처음 오는 사람에게 보여주는 안내 -->
+<!-- 들어오자마자 뜨는 안내 — 아직 미완성이라 피드백을 부탁한다 -->
+<div id="notice" class="overlay notice" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+  <div class="sheet tall">
+    <div class="big" id="noticeTitle">피드백을 부탁드립니다</div>
+    <div class="doc">
+      <p>이 스플렌더는 제가 보드게임을 직접 해 보지 않은 채 규칙만 보고 만든 것이라, 아직 미완성이고 부족한 점이 많습니다.
+      스플렌더를 잘 알지 못해 혼자서는 완성하기가 어렵습니다.</p>
+      <p><b>보드게임 스플렌더를 해 보셨거나 이 온라인 스플렌더를 플레이해 보신 분</b>이라면,
+      규칙이 다르거나 어색한 점을 알려 주시면 큰 도움이 됩니다.</p>
+      <p>해 보지도 않고 만들기부터 해서 죄송합니다.</p>
+      <p>의견 보내실 곳 — <a href="mailto:gyolno2@naver.com">gyolno2@naver.com</a> ·
+      <a href="https://github.com/41ways/splendor-fanproj/issues" target="_blank" rel="noopener noreferrer">GitHub 이슈</a></p>
+    </div>
+    <button id="btnNotice" class="primary">확인</button>
+  </div>
+</div>
+
+<div id="tour" class="overlay hidden">
+  <div class="sheet tour">
+    <div class="tstep" data-step="0">
+      <div class="big">이 게임이 뭐냐면</div>
+      <div class="demo">
+        <div class="card sample gem-r t3">
+          <svg class="art"><use href="#i-art3"/></svg>
+          <div class="band"><span class="pts">4</span><svg class="gemicon g-r"><use href="#i-gem"/></svg></div>
+          <div class="costs"><span class="chip gem-u">7</span></div>
+        </div>
+        <div class="arrow">+</div>
+        <div class="noble sample">
+          <svg class="bust"><use href="#i-bust"/></svg>
+          <div class="np">3점</div>
+          <div class="medal">👑</div>
+          <div class="nm">귀족</div>
+        </div>
+      </div>
+      <p class="doc"><b>15점</b>을 먼저 넘기면 됩니다. 점수는 카드 <b>왼쪽 위 숫자</b>와 귀족(각 3점)에서 나옵니다.
+        0점짜리 카드가 훨씬 많은데, 그게 정상입니다. 이유는 뒤에 나옵니다.</p>
+    </div>
+
+    <div class="tstep hidden" data-step="1">
+      <div class="big">차례에 하나만 합니다</div>
+      <div class="demo">
+        <div class="tok gem-w"><svg class="gemicon g-w"><use href="#i-gem"/></svg><span class="num">7</span></div>
+        <div class="tok gem-u"><svg class="gemicon g-u"><use href="#i-gem"/></svg><span class="num">7</span></div>
+        <div class="tok gem-g"><svg class="gemicon g-g"><use href="#i-gem"/></svg><span class="num">7</span></div>
+      </div>
+      <p class="doc">가장 흔한 선택은 <b>보석 집기</b>입니다. 화면 아래 보석 더미 <b>세 개를 눌러</b>
+        서로 다른 색으로 하나씩 가져옵니다. (한 색이 급하면 같은 색 2개도 됩니다 — 그 색이 4개 이상 남아 있을 때만.)</p>
+      <p class="doc">나머지 두 가지는 <b>카드 사기</b>와 <b>카드 킵하기</b>입니다.</p>
+    </div>
+
+    <div class="tstep hidden" data-step="2">
+      <div class="big">모은 보석으로 카드를 삽니다</div>
+      <div class="demo">
+        <div class="card sample gem-g t1">
+          <svg class="art"><use href="#i-art1"/></svg>
+          <div class="band"><span class="pts"></span><svg class="gemicon g-g"><use href="#i-gem"/></svg></div>
+          <div class="costs"><span class="chip gem-w">2</span><span class="chip gem-r">1</span></div>
+        </div>
+        <div class="arrow">←</div>
+        <div class="pay">
+          <span class="chip big gem-w">2</span><span class="chip big gem-r">1</span>
+        </div>
+      </div>
+      <p class="doc">카드 <b>왼쪽 아래 칩</b>이 값입니다. 이 카드는 다이아몬드 2개 + 루비 1개.
+        카드를 누르면 아래에 <b>[사기]</b> 가 뜹니다. 지금 살 수 있는 카드는 <b>초록 테두리</b>가 둘러집니다.</p>
+    </div>
+
+    <div class="tstep hidden" data-step="3">
+      <div class="big">산 카드는 영원한 할인권</div>
+      <div class="demo">
+        <div class="card sample gem-g t1">
+          <svg class="art"><use href="#i-art1"/></svg>
+          <div class="band"><span class="pts"></span><svg class="gemicon g-g"><use href="#i-gem"/></svg></div>
+          <div class="costs"><span class="chip gem-w">2</span></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="pay"><svg class="gemicon big g-g"><use href="#i-gem"/></svg><span class="ever">매 턴 −1</span></div>
+      </div>
+      <p class="doc">카드 <b>오른쪽 위 보석 문양</b>이 그 카드가 주는 것입니다.
+        에메랄드 카드를 사면 <b>앞으로 계속</b> 에메랄드 1개를 가진 셈이 됩니다. 칩처럼 없어지지 않습니다.</p>
+      <p class="doc">그래서 0점짜리 싼 카드도 값집니다. 그게 쌓여야 비싼 <b>점수 카드</b>를 살 수 있습니다.
+        초반에 점수만 노리면 대개 집니다.</p>
+    </div>
+
+    <div class="tstep hidden" data-step="4">
+      <div class="big">귀족은 저절로 옵니다</div>
+      <div class="demo">
+        <div class="noble sample">
+          <svg class="bust"><use href="#i-bust"/></svg>
+          <div class="np">3점</div>
+          <div class="medal">🔨</div>
+          <div class="nm">유리공방</div>
+          <div class="need"><span class="chip gem-w">4</span><span class="chip gem-u">4</span></div>
+        </div>
+      </div>
+      <p class="doc">귀족이 요구하는 건 칩이 아니라 <b>사 놓은 카드의 색깔 수</b>입니다.
+        이 귀족은 다이아몬드 카드 4장 + 사파이어 카드 4장. 채우는 순간 <b>차례를 쓰지 않고</b> 3점이 들어옵니다.</p>
+    </div>
+
+    <div class="tstep hidden" data-step="5">
+      <div class="big">막히면 도우미를 켜세요</div>
+      <div class="demo"><span class="coachdemo">지금은 <b>에메랄드·루비·오닉스</b>를 집는 게 좋아 보입니다</span></div>
+      <p class="doc">판 위쪽의 <b>도우미</b>를 켜 두면, 지금 뭘 누르면 되는지 한 줄로 알려주고
+        추천하는 카드와 보석에 <b>금색 점선</b>을 둘러 줍니다. 시키는 대로만 눌러도 한 판이 굴러갑니다.</p>
+      <p class="doc">익숙해지면 끄면 됩니다. 오른쪽 위 <b>도움말</b>에서 규칙과 화면 보는 법을 다시 열 수 있습니다.</p>
+    </div>
+
+    <div class="dots" id="tourDots"></div>
+    <div class="row">
+      <button id="btnTourPrev" class="grow">이전</button>
+      <button id="btnTourNext" class="primary grow">다음</button>
+    </div>
+    <button id="btnTourSkip" class="ghost">건너뛰기</button>
+  </div>
+</div>
+
+<!-- 규칙 -->
+<div id="rules" class="overlay hidden">
+  <div class="sheet tall">
+    <div class="big">규칙</div>
+    <div class="doc">
+      <p><b>목표</b> — 15점을 먼저 넘기는 것. 다만 그 자리에서 끝나지 않고, 그 라운드의 마지막 사람까지 차례를 마친 뒤 <b>가장 높은 점수</b>가 이깁니다.</p>
+      <p><b>차례에 하나</b>만 합니다.</p>
+      <ul>
+        <li>서로 다른 보석 <b>3개</b>를 하나씩 집기</li>
+        <li>같은 보석 <b>2개</b> 집기 — 그 보석이 <b>4개 이상</b> 남아 있을 때만</li>
+        <li>펼쳐진 카드나 내 킵 카드 <b>사기</b></li>
+        <li>카드 한 장 <b>킵</b>하고 황금 1개 받기 — 킵은 3장까지</li>
+      </ul>
+      <p><b>카드</b>는 사면 그 색 보석 하나를 <b>영구히</b> 대신해 줍니다. 카드가 쌓일수록 다음 카드가 싸집니다. 황금은 어느 색으로든 쓸 수 있습니다.</p>
+      <p><b>칩은 10개까지</b>. 넘기면 넘친 만큼 그 자리에서 버립니다.</p>
+      <p><b>귀족</b>은 조건(카드 색깔 수)을 채우면 차례를 쓰지 않고 저절로 찾아옵니다. 각 3점.</p>
+      <p><b>동점</b>이면 개발 카드가 <b>적은</b> 사람이 이깁니다. 그것도 같으면 귀족 수, 남은 칩 수, 그래도 같으면 후공이 이깁니다.</p>
+
+      <div class="big" style="margin:18px 0 12px">화면 보는 법</div>
+      <div class="legend">
+        <div class="card sample gem-u t2">
+          <svg class="art"><use href="#i-art2"/></svg>
+          <div class="band"><span class="pts">2</span><svg class="gemicon g-u"><use href="#i-gem"/></svg></div>
+          <div class="costs"><span class="chip gem-r">5</span><span class="chip gem-k">3</span></div>
+        </div>
+        <div>
+          <p><b>왼쪽 위 숫자</b> — 이 카드의 점수. 없으면 0점.</p>
+          <p><b>오른쪽 위 문양</b> — 사면 영구히 갖게 되는 보석.</p>
+          <p><b>왼쪽 아래 칩</b> — 이 카드의 값. <b>흐린 칩</b>은 이미 감당되는 몫입니다.</p>
+        </div>
+      </div>
+      <ul>
+        <li>왼쪽 <b>더미</b>(1·2·3단계)를 누르면 안 보고 한 장 킵합니다.</li>
+        <li>내 자리의 <b>색깔 블록 안 숫자</b>는 그 색 <b>카드 수</b>(영구 할인), 그 아래 <b>칩 N</b>은 지금 손에 든 <b>칩 수</b>입니다.</li>
+        <li>상대 줄의 <code>2·1</code> 은 <b>카드 2장 · 칩 1개</b>라는 뜻입니다.</li>
+        <li><b>초록 테두리</b> = 지금 살 수 있는 카드. <b>금색 점선</b> = 도우미의 추천.</li>
+      </ul>
+    </div>
+    <div class="row">
+      <button id="btnTourAgain" class="grow">처음 안내 다시 보기</button>
+      <button id="btnCloseRules" class="primary grow">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div class="sig">정한결</div>
+
+<!-- 같은 방 사람끼리 하는 채팅 — 봇만 있는 방에서는 뜨지 않는다 -->
+<button id="chatBtn" class="chat-btn" hidden aria-label="채팅 열기">💬<span class="chat-n" id="chatN" hidden></span></button>
+<div id="chatPeek" class="chat-peek" hidden role="status" aria-live="polite"></div>
+<section id="chat" class="chat" hidden aria-label="채팅">
+  <header class="chat-head"><b>채팅</b><span class="chat-sub" id="chatWho"></span><button class="chat-x" id="chatX" aria-label="닫기">✕</button></header>
+  <div class="chat-log" id="chatLog"></div>
+  <form class="chat-in" id="chatForm">
+    <input id="chatText" maxlength="200" placeholder="같은 방 사람들에게" autocomplete="off">
+    <button type="submit">보내기</button>
+  </form>
+</section>
+
+<!-- rules.js · ai.js 는 저장소 루트의 원본을 가리키는 심볼릭 링크다. 서버(game.js)와 같은 파일을 쓴다 -->
+<script src="rules.js?v=2d8dc1de"></script>
+<script src="ai.js?v=40eadb31"></script>
+<script src="app.js?v=5617a161"></script>
+<!-- 연출 속도 재기 — ?qa=pace 로 들어올 때만 불러온다 -->
+<script>if(new URLSearchParams(location.search).get('qa')==='pace'){var s=document.createElement('script');s.src='qa/scene.js';document.body.appendChild(s);}</script>
+
+<!-- 방문 통계와 오류 수집 — 허브와 같은 곳으로 모인다.
+     GoatCounter 는 쿠키를 쓰지 않고 개인을 가려내지 않는다. 오류는 메시지·파일·줄만 보낸다. -->
+<script>
+(function () {
+  var APP = "splendor";
+
+  // 게임마다 따로 세어지게 이름을 미리 정해 둔다 (워커 게임은 경로가 다 "/" 라서 안 그러면 한 줄로 뭉친다)
+  window.goatcounter = { path: APP };
+  var sc = document.createElement("script");
+  sc.async = true;
+  sc.src = "https://gc.zgo.at/count.js";
+  sc.setAttribute("data-goatcounter", "https://41ways.goatcounter.com/count");
+  document.head.appendChild(sc);
+
+  // 판 수·인원·걸린 시간 — 게임 코드에서 norara.ev("start", { n: 인원 }) 처럼 부른다.
+  // 날짜·게임·이름으로 묶어 더하기만 하므로 한 판에 한 줄씩 쌓이지 않는다.
+  // 지금 누가 있나 — 화면이 보이는 동안 1분에 한 번 "여기 있음"을 보낸다. 판 중인지(play)
+  // 화면만 보는지(look)를 같이 싣는다. 탭마다 무작위 번호 하나뿐, 개인을 가려낼 정보는 없다.
+  var sid = (function () {
+    try {
+      var s = sessionStorage.getItem("norara.sid");
+      if (!s) { s = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); sessionStorage.setItem("norara.sid", s); }
+      return s;
+    } catch (e) { return Math.random().toString(36).slice(2, 14); }
+  })();
+  var playing = false;
+  function beat(st) {
+    try {
+      navigator.sendBeacon("https://norara-errors.41ways.workers.dev/beat",
+        JSON.stringify({ app: APP, sid: sid, st: st || (playing ? "play" : "look") }));
+    } catch (e) {}
+  }
+
+  window.norara = {
+    ev: function (name, o) {
+      o = o || {};
+      o.app = APP;
+      o.ev = name;
+      try {
+        navigator.sendBeacon("https://norara-errors.41ways.workers.dev/ev", JSON.stringify(o));
+      } catch (e) {}
+      if (name === "start") window.norara.live(true);   // 판 시작·끝은 "지금" 칸에도 바로 반영
+      if (name === "end") window.norara.live(false);
+    },
+    // 판 중인지 알린다. 방장만 판 수를 세는 온라인 게임도, 참가자는 이걸로 "판 중"에 잡힌다
+    live: function (on) {
+      on = !!on;
+      if (on === playing) return;
+      playing = on;
+      if (document.visibilityState === "visible") beat();
+    }
+  };
+
+  setTimeout(function () { if (document.visibilityState === "visible") beat(); }, 2000);
+  setInterval(function () { if (document.visibilityState === "visible") beat(); }, 60000);
+  document.addEventListener("visibilitychange", function () {
+    beat(document.visibilityState === "hidden" ? "gone" : null);   // 숨기면 바로 빠지고, 돌아오면 다시 잡힌다
+  });
+  addEventListener("pagehide", function () { beat("gone"); });
+
+  // 얼마나 머물렀는지 — 탭을 덮거나 닫을 때 한 번만. pagehide 만으로는 폰에서 자주 놓친다.
+  var came = Date.now(), told = false;
+  function leaving() {
+    if (told) return;
+    told = true;
+    var sec = Math.round((Date.now() - came) / 1000);
+    if (sec >= 5) window.norara.ev("visit", { sec: sec });   // 스쳐 간 것은 빼고
+  }
+  addEventListener("pagehide", leaving);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") leaving();
+  });
+
+  // 화면에서 터진 오류를 모은다. 한 번 열 때 다섯 건까지만 — 같은 오류가 쏟아져도 한도를 안 태우게.
+  var left = 5;
+  function send(o) {
+    if (left-- <= 0) return;
+    o.app = APP;
+    o.page = location.pathname + location.search;
+    try {
+      navigator.sendBeacon("https://norara-errors.41ways.workers.dev/report", JSON.stringify(o));
+    } catch (e) {}
+  }
+  addEventListener("error", function (e) {
+    if (!e.message) return;                  // 그림·소리 파일이 안 열린 것은 뺀다
+    send({ msg: e.message, src: e.filename, line: e.lineno, col: e.colno,
+           stack: e.error && e.error.stack });
+  });
+  addEventListener("unhandledrejection", function (e) {
+    var r = e.reason;
+    send({ msg: "처리되지 않은 거절: " + ((r && r.message) || r), stack: r && r.stack });
+  });
+})();
+</script>
+</body>
+</html>

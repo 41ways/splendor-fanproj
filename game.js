@@ -175,20 +175,26 @@ function botStep(room) {
   if (room.phase !== 'playing' || !s || s.phase === 'over' || rooms.get(room.code) !== room) return;
   const p = R.current(s);
   if (!p.bot) return;
-  const v = R.viewFor(s, p.id);
   let r = null;
-
-  if (s.phase === 'discard') r = R.discard(s, p.id, AI.chooseDiscard(v));
-  else if (s.phase === 'noble') r = R.pickNoble(s, p.id, AI.chooseNoble(v));
-  else {
-    const a = AI.act(v, room.cfg.skill);
-    if (a) r = R[a.action].apply(null, [s, p.id].concat(a.args));
-  }
-  if (!r || !r.ok) r = botFallback(s, p, v);
-  if (!r || !r.ok) {
-    // 여기까지 오면 규칙 엔진과 봇이 어긋난 것이다. 판이 영영 멈추지 않게 그 봇을 판에서 뺀다.
-    console.error('봇이 막힘', room.code, p.name, r && r.error);
-    R.dropPlayer(s, p.id);
+  // 봇 판단이나 규칙 엔진이 예외를 던져도(버그) 판이 거기서 영영 멈추면 안 된다 —
+  // afterMove(room) 은 아래에서 무조건 불려서 다음 수를 잡거나 다들 알림을 받게 한다.
+  try {
+    const v = R.viewFor(s, p.id);
+    if (s.phase === 'discard') r = R.discard(s, p.id, AI.chooseDiscard(v));
+    else if (s.phase === 'noble') r = R.pickNoble(s, p.id, AI.chooseNoble(v));
+    else {
+      const a = AI.act(v, room.cfg.skill);
+      if (a) r = R[a.action].apply(null, [s, p.id].concat(a.args));
+    }
+    if (!r || !r.ok) r = botFallback(s, p, v);
+    if (!r || !r.ok) {
+      // 여기까지 오면 규칙 엔진과 봇이 어긋난 것이다. 판이 영영 멈추지 않게 그 봇을 판에서 뺀다.
+      console.error('봇이 막힘', room.code, p.name, r && r.error);
+      R.dropPlayer(s, p.id);
+    }
+  } catch (err) {
+    console.error('봇 처리 중 예외', room.code, p.name, err);
+    try { R.dropPlayer(s, p.id); } catch (err2) { console.error('봇 빼기도 실패', room.code, p.name, err2); }
   }
   afterMove(room);
 }

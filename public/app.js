@@ -172,16 +172,28 @@
     if (!s || s.phase === 'over') return;
     var p = R.current(s);
     if (!p.bot) return;
-    var v = R.viewFor(s, p.id), r = null;
-
-    if (s.phase === 'discard') r = R.discard(s, p.id, AI.chooseDiscard(v));
-    else if (s.phase === 'noble') r = R.pickNoble(s, p.id, AI.chooseNoble(v));
-    else {
-      var a = AI.act(v, App.skill);
-      if (a) r = R[a.action].apply(null, [s, p.id].concat(a.args));
+    var r = null;
+    // 봇 판단이나 규칙 엔진이 예외를 던져도(버그) 판이 거기서 영영 멈추면 안 된다 —
+    // pushViews() 는 아래에서 무조건 불려서 화면이 계속 이어진다.
+    try {
+      var v = R.viewFor(s, p.id);
+      if (s.phase === 'discard') r = R.discard(s, p.id, AI.chooseDiscard(v));
+      else if (s.phase === 'noble') r = R.pickNoble(s, p.id, AI.chooseNoble(v));
+      else {
+        var a = AI.act(v, App.skill);
+        if (a) r = R[a.action].apply(null, [s, p.id].concat(a.args));
+      }
+      if (!r || !r.ok) r = botFallback(s, p, v);
+      if (!r || !r.ok) {
+        console.error('봇이 막힘', p.name, r && r.error);
+        R.dropPlayer(s, p.id);
+        toast('봇이 막혀서 판에서 뺐습니다.');
+      }
+    } catch (e) {
+      console.error('봇 처리 중 예외', e);
+      try { R.dropPlayer(s, p.id); } catch (e2) {}
+      toast('봇이 막혀서 판에서 뺐습니다.');
     }
-    if (!r || !r.ok) r = botFallback(s, p, v);
-    if (!r || !r.ok) { toast('봇이 막혔습니다.'); return; }
     pushViews();
   }
 
